@@ -11,9 +11,10 @@ ENV/
 # Bot token
 .env
 
-# YouTube cookies (maxfiy!)
-youtube_cookies.txt
+# Original cookies files (backups)
 cookies.txt
+youtube_cookies_only.txt
+youtube_cookies_clean.txt
 
 # Downloaded files
 downloads/

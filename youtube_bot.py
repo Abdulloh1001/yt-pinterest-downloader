@@ -165,22 +165,11 @@ async def show_quality_options(query, url, context):
             'age_limit': None,  # Age restriction'ni o'tkazib yuborish
         }
         
-        # Cookies - avval environment variable'dan, keyin fayldan
-        cookies_content = os.getenv('YOUTUBE_COOKIES')
-        if cookies_content:
-            # Environment variable'dan cookies o'qish (Railway uchun)
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-                f.write(cookies_content)
-                temp_cookies_file = f.name
-            ydl_opts['cookiefile'] = temp_cookies_file
-            logger.info("YouTube cookies environment variable'dan olinmoqda")
-        else:
-            # Lokal fayl mavjud bo'lsa ishlatamiz
-            cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
-            if os.path.exists(cookies_file):
-                ydl_opts['cookiefile'] = cookies_file
-                logger.info("YouTube cookies fayli topildi va ishlatilmoqda")
+        # Cookies fayl mavjud bo'lsa ishlatamiz
+        cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+        if os.path.exists(cookies_file):
+            ydl_opts['cookiefile'] = cookies_file
+            logger.info("YouTube cookies fayli topildi va ishlatilmoqda")
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -312,20 +301,10 @@ async def download_video(query, url, quality='best'):
             'age_limit': None,
         }
         
-        # Cookies - avval environment variable'dan, keyin fayldan
-        cookies_content = os.getenv('YOUTUBE_COOKIES')
-        if cookies_content:
-            # Environment variable'dan cookies o'qish (Railway uchun)
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-                f.write(cookies_content)
-                temp_cookies_file = f.name
-            ydl_opts['cookiefile'] = temp_cookies_file
-        else:
-            # Lokal fayl mavjud bo'lsa ishlatamiz
-            cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
-            if os.path.exists(cookies_file):
-                ydl_opts['cookiefile'] = cookies_file
+        # Cookies fayl mavjud bo'lsa ishlatamiz
+        cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+        if os.path.exists(cookies_file):
+            ydl_opts['cookiefile'] = cookies_file
         
         # Pinterest va YouTube uchun turli formatlar
         if is_pinterest:
@@ -485,20 +464,10 @@ async def download_audio(query, url):
             'age_limit': None,
         }
         
-        # Cookies - avval environment variable'dan, keyin fayldan
-        cookies_content = os.getenv('YOUTUBE_COOKIES')
-        if cookies_content:
-            # Environment variable'dan cookies o'qish (Railway uchun)
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-                f.write(cookies_content)
-                temp_cookies_file = f.name
-            ydl_opts['cookiefile'] = temp_cookies_file
-        else:
-            # Lokal fayl mavjud bo'lsa ishlatamiz
-            cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
-            if os.path.exists(cookies_file):
-                ydl_opts['cookiefile'] = cookies_file
+        # Cookies fayl mavjud bo'lsa ishlatamiz
+        cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+        if os.path.exists(cookies_file):
+            ydl_opts['cookiefile'] = cookies_file
         
         
         # FFmpeg mavjud bo'lsa MP3 ga o'giramiz
