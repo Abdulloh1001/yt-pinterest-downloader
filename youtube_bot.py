@@ -151,13 +151,14 @@ async def show_quality_options(query, url, context):
     try:
         await query.edit_message_text("🔍 Mavjud sifatlar tekshirilmoqda...")
         
-        # yt-dlp orqali mavjud formatlarni olish
+        # yt-dlp orqali mavjud formatlarni olish (format tanlash SHART EMAS)
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'socket_timeout': 30,
-            'age_limit': None,  # Age restriction'ni o'tkazib yuborish
-            'format': 'best',  # Default format - eng yaxshi sifat
+            'age_limit': None,
+            'noplaylist': True,
+            # format belgisi yo'q - yt-dlp barcha formatlarni qaytaradi
         }
         
         # Cookies fayl mavjud bo'lsa ishlatamiz
@@ -169,6 +170,11 @@ async def show_quality_options(query, url, context):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = info.get('formats', [])
+            
+            # Agar formatlar bo'lmasa, xato
+            if not formats:
+                await query.edit_message_text("❌ Video formatlar topilmadi. Havola noto'g'ri yoki video mavjud emas.")
+                return
         
         # Video+Audio formatlarini filterlash (m3u8 ham qo'llab-quvvatlash)
         quality_map = {}
