@@ -674,7 +674,9 @@ def main():
     
     # Error handler
     application.add_error_handler(error_handler)
-    
+    # Railway uchun optimizatsiya - direct URL yuborish
+        # Bu server orqali emas, to'g'ridan-to'g'ri foydalanuvchiga yuboradi
+    application.bot_data['use_direct_download'] = True
     # Botni ishga tushirish
     print("Bot ishga tushdi! ✅")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
