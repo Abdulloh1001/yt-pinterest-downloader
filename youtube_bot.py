@@ -262,9 +262,13 @@ async def download_video(query, url, quality='best', context=None):
     try:
         await query.edit_message_text("🔍 Video ma'lumotlari olinmoqda...")
         
-        # Avval DIRECT URL orqali yuborishga harakat qilamiz (tezroq!)
-        # Faqat context mavjud bo'lsa
-        if context:
+        # Pinterest/Instagram uchun DIRECT URL ishlatamiz (tezroq!)
+        # YouTube uchun ishlamaydi (Telegram API rad etadi)
+        is_pinterest = 'pinterest.com' in url or 'pin.it' in url
+        is_instagram = 'instagram.com' in url or 'instagr.am' in url
+        
+        # Faqat Pinterest/Instagram uchun direct URL
+        if context and (is_pinterest or is_instagram):
             try:
                 # Video URL'ni olish (yuklab olmasdan)
                 ydl_opts_info = {
@@ -284,8 +288,7 @@ async def download_video(query, url, quality='best', context=None):
                     title = info.get('title', 'Video')
                     filesize = info.get('filesize') or info.get('filesize_approx', 0)
                     
-                    # Agar URL mavjud bo'lsa, DOIM direct yuboramiz (hajmga qaramay)
-                    # Telegram URL orqali 50MB+ fayllarni qabul qiladi!
+                    # Agar URL mavjud bo'lsa, direct yuboramiz
                     if video_url:
                         size_mb = filesize / (1024*1024) if filesize else 0
                         logger.info(f"Direct URL orqali yuborilmoqda: {title} ({size_mb:.1f}MB)")
@@ -519,9 +522,13 @@ async def download_audio(query, url, context=None):
     try:
         await query.edit_message_text("🔍 Audio ma'lumotlari olinmoqda...")
         
-        # Avval DIRECT URL orqali yuborishga harakat qilamiz (tezroq!)
-        # Faqat context mavjud bo'lsa
-        if context:
+        # Pinterest/Instagram uchun DIRECT URL ishlatamiz (tezroq!)
+        # YouTube uchun ishlamaydi (Telegram API rad etadi)
+        is_pinterest = 'pinterest.com' in url or 'pin.it' in url
+        is_instagram = 'instagram.com' in url or 'instagr.am' in url
+        
+        # Faqat Pinterest/Instagram uchun direct URL
+        if context and (is_pinterest or is_instagram):
             try:
                 # Audio URL'ni olish (yuklab olmasdan)
                 ydl_opts_info = {
