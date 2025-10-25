@@ -1,6 +1,9 @@
 import os
 import logging
 import time
+import math
+import shutil
+import subprocess
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 import yt_dlp
@@ -26,6 +29,82 @@ LOG_CHANNEL = os.getenv('LOG_CHANNEL')
 DOWNLOAD_FOLDER = 'downloads'
 if not os.path.exists(DOWNLOAD_FOLDER):
     os.makedirs(DOWNLOAD_FOLDER)
+
+
+# ---- Helper: Direct yuborish (Instagram/Pinterest) ----
+async def send_direct_video(query, url, context: ContextTypes.DEFAULT_TYPE, quality: str = 'best') -> bool:
+    """Instagram/Pinterest uchun to'g'ridan-to'g'ri URL orqali yuboradi.
+    True qaytaradi agar yuborilgan bo'lsa, aks holda False.
+    """
+    try:
+        is_pinterest = 'pinterest.com' in url or 'pin.it' in url
+        is_instagram = 'instagram.com' in url or 'instagr.am' in url
+        if not (is_pinterest or is_instagram):
+            return False
+
+        ydl_opts_info = {
+            'quiet': True,
+            'no_warnings': True,
+            'format': f"best[height<={quality[:-1]}]" if quality != 'best' else 'best',
+        }
+        cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+        if os.path.exists(cookies_file):
+            ydl_opts_info['cookiefile'] = cookies_file
+
+        with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+            info = ydl.extract_info(url, download=False)
+            chosen_url = info.get('url')
+            # Agar birlamchi url bo'lmasa, formatlar orasidan tanlashga harakat qilamiz
+            if not chosen_url and 'formats' in info:
+                fmts = info['formats']
+                def score(f):
+                    sc = 0
+                    if f.get('ext') == 'mp4': sc += 2
+                    if f.get('vcodec') and '264' in f.get('vcodec'): sc += 1
+                    if f.get('acodec') and f.get('acodec') != 'none': sc += 1
+                    if f.get('protocol', '').startswith('http'): sc += 1
+                    if f.get('vcodec') != 'none' and f.get('acodec') != 'none': sc += 2
+                    return sc
+                progressive = [f for f in fmts if f.get('vcodec') != 'none']
+                progressive.sort(key=score, reverse=True)
+                if progressive:
+                    chosen_url = progressive[0].get('url') or chosen_url
+
+            if not chosen_url:
+                return False
+
+            title = info.get('title', 'Video')
+            filesize = info.get('filesize') or info.get('filesize_approx', 0)
+            size_mb = filesize/(1024*1024) if filesize else 0
+
+            user_id = query.message.chat_id
+            await context.bot.send_video(
+                chat_id=user_id,
+                video=chosen_url,
+                caption=f"✅ {title}\n\n🚀 Direct",
+                supports_streaming=True,
+                read_timeout=120,
+                write_timeout=120,
+            )
+
+            # Eski xabarni tozalash
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+
+            if LOG_CHANNEL:
+                username = query.from_user.username
+                user_link = f"@{username}" if username else f"User {query.from_user.id}"
+                await context.bot.send_message(
+                    chat_id=LOG_CHANNEL,
+                    text=f"📹 Video (DIRECT)\n👤 {user_link}\n🔗 {url}"
+                )
+            logger.info(f"Video DIRECT yuborildi: {title} ({size_mb:.1f}MB)")
+            return True
+    except Exception as e:
+        logger.warning(f"send_direct_video xatolik: {e}")
+        return False
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -431,6 +510,23 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Agar video tugmasi bosilgan bo'lsa - sifatlarni ko'rsat
     if callback_data == 'video':
         await show_quality_options(query, url, context)
+    # 🚀 Direct tugmasi bosilganda (Instagram/Pinterest uchun tezkor yuborish)
+    elif callback_data.startswith('direct_'):
+        # 🚀 Direct yuborish
+        await query.edit_message_text("🚀 To'g'ridan-to'g'ri yuborilmoqda...")
+        try:
+            sent = await send_direct_video(query, url, context, quality='best')
+            if not sent:
+                await query.edit_message_text(
+                    "⚠️ Direct ishlamadi. \nEndi server orqali yuborishga harakat qilamiz (50 MB limit)."
+                )
+                await show_quality_options(query, url, context)
+        except Exception as e:
+            logger.warning(f"Direct yuborishda xatolik: {e}")
+            await query.edit_message_text(
+                "⚠️ Direct ishlamadi. \nEndi server orqali yuborishga harakat qilamiz (50 MB limit)."
+            )
+            await show_quality_options(query, url, context)
     # Agar sifat tanlangan bo'lsa (video_720p kabi)
     elif callback_data.startswith('video_'):
         quality = callback_data.replace('video_', '')  # '720p' ni oladi
@@ -444,12 +540,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_quality_options(query, url, context):
     """Video sifatlarini ko'rsatadi va foydalanuvchi tanlaydi"""
     try:
-        # Instagram Story/Highlights uchun format tanlash kerak emas - to'g'ridan-to'g'ri download_video chaqirish
+        # Instagram Story/Highlights uchun avval direct, keyin serverga fallback
         if '/stories/' in url or '/s/' in url:
             logger.info("Instagram Story/Highlights - to'g'ridan-to'g'ri yuklanmoqda")
             await query.edit_message_text("📱 Story/Highlights yuklanmoqda...")
-            await download_video(query, url, 'best', context)
-            return
+            try:
+                sent = await send_direct_video(query, url, context, quality='best')
+                if not sent:
+                    await download_video(query, url, 'best', context)
+                return
+            except Exception:
+                await download_video(query, url, 'best', context)
+                return
         
         await query.edit_message_text("🔍 Mavjud sifatlar tekshirilmoqda...")
         
@@ -478,6 +580,11 @@ async def show_quality_options(query, url, context):
                 await query.edit_message_text("❌ Video formatlar topilmadi. Havola noto'g'ri yoki video mavjud emas.")
                 return
         
+        # Platformani aniqlash (direct streaming mavjudmi?)
+        is_pinterest = 'pinterest.com' in url or 'pin.it' in url
+        is_instagram = 'instagram.com' in url or 'instagr.am' in url
+        direct_possible = is_pinterest or is_instagram
+
         # Video+Audio formatlarini filterlash (m3u8 ham qo'llab-quvvatlash)
         quality_map = {}
         for f in formats:
@@ -504,6 +611,10 @@ async def show_quality_options(query, url, context):
         
         # Tugmalarni yaratish
         keyboard = []
+
+        # 🚀 Direct (Instagram/Pinterest) tugmasi birinchi bo'lib chiqadi
+        if direct_possible:
+            keyboard.append([InlineKeyboardButton("🚀 Tezkor (Direct)", callback_data="direct_best")])
         
         # Quality map'dan avtomatik sort qilib olish (pastdan yuqoriga)
         sorted_qualities = sorted(quality_map.items(), key=lambda x: x[1]['height'])
@@ -516,11 +627,11 @@ async def show_quality_options(query, url, context):
                 size_mb = size / (1024 * 1024)
                 # Faqat 50MB dan kichik bo'lganlarni ko'rsatish
                 if size_mb <= 50:
-                    button_text = f"📹 {quality} • {size_mb:.1f} MB"
+                    button_text = f"☁️ {quality} • {size_mb:.1f} MB"
                     keyboard.append([InlineKeyboardButton(button_text, callback_data=f"video_{quality}")])
             else:
-                # Hajm noma'lum (m3u8 format) - baribir ko'rsatamiz
-                button_text = f"📹 {quality}"
+                # Hajm noma'lum (m3u8/progressive) - ogohlantirib ko'rsatamiz
+                button_text = f"☁️ {quality} • N/A"
                 keyboard.append([InlineKeyboardButton(button_text, callback_data=f"video_{quality}")])
         
         if not keyboard:
@@ -534,9 +645,19 @@ async def show_quality_options(query, url, context):
         keyboard.append([InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_format")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
+        # Izohli matn: qaysi usulda yuborilishi, limit va tezlik
+        description_lines = [
+            "📊 Video sifatini tanlang:\n",
+        ]
+        if direct_possible:
+            description_lines.append("🚀 Tezkor (Direct): Telegram serverlari • Limit yo'q • Juda tez")
+        else:
+            description_lines.append("🚀 Tezkor (Direct): N/A (faqat Instagram/Pinterest)")
+        description_lines.append("☁️ Serverdan: Bizning server • 50 MB limit • Sekinroq")
+        description_lines.append("\n⚠️ N/A (hajm noma'lum) formatlar katta bo'lishi mumkin va 50 MBdan oshsa yuborilmaydi")
+
         await query.edit_message_text(
-            "📊 Video sifatini tanlang:\n\n"
-            "⚠️ Telegram limiti: maksimum 50 MB",
+            "\n".join(description_lines),
             reply_markup=reply_markup
         )
         
@@ -564,71 +685,9 @@ async def download_video(query, url, quality='best', context=None):
     try:
         await query.edit_message_text("🔍 Video ma'lumotlari olinmoqda...")
         
-        # Pinterest/Instagram uchun DIRECT URL ishlatamiz (tezroq!)
-        # YouTube uchun ishlamaydi (Telegram API rad etadi)
+        # Platforma flaglari (direct endi faqat alohida tugma orqali)
         is_pinterest = 'pinterest.com' in url or 'pin.it' in url
         is_instagram = 'instagram.com' in url or 'instagr.am' in url
-        
-        # Faqat Pinterest/Instagram uchun direct URL
-        if context and (is_pinterest or is_instagram):
-            try:
-                # Video URL'ni olish (yuklab olmasdan)
-                ydl_opts_info = {
-                    'quiet': True,
-                    'no_warnings': True,
-                    'format': f'best[height<={quality[:-1]}]' if quality != 'best' else 'best',
-                }
-                
-                # Cookies fayl mavjud bo'lsa ishlatamiz
-                cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
-                if os.path.exists(cookies_file):
-                    ydl_opts_info['cookiefile'] = cookies_file
-                
-                with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    video_url = info.get('url')
-                    title = info.get('title', 'Video')
-                    filesize = info.get('filesize') or info.get('filesize_approx', 0)
-                    
-                    # Agar URL mavjud bo'lsa, direct yuboramiz
-                    if video_url:
-                        size_mb = filesize / (1024*1024) if filesize else 0
-                        logger.info(f"Direct URL orqali yuborilmoqda: {title} ({size_mb:.1f}MB)")
-                        await query.edit_message_text(
-                            f"📤 Video to'g'ridan-to'g'ri yuborilmoqda...\n"
-                            f"📊 Hajm: {size_mb:.1f} MB" if size_mb > 0 else "📤 Video yuborilmoqda..."
-                        )
-                        
-                        user_id = query.message.chat_id
-                        message_id = query.message.message_id
-                        
-                        # Direct URL orqali yuborish
-                        await context.bot.send_video(
-                            chat_id=user_id,
-                            video=video_url,
-                            caption=f"✅ {title}\n\n📊 Sifat: {quality}",
-                            supports_streaming=True,
-                            read_timeout=120,
-                            write_timeout=120,
-                        )
-                        
-                        # Eski xabarni o'chirish
-                        await query.message.delete()
-                        
-                        # LOG_CHANNEL'ga yuborish
-                        if LOG_CHANNEL:
-                            username = query.from_user.username
-                            user_link = f"@{username}" if username else f"User {query.from_user.id}"
-                            await context.bot.send_message(
-                                chat_id=LOG_CHANNEL,
-                                text=f"📹 Video yuklandi (DIRECT)\n👤 {user_link}\n🔗 {url}\n📊 {quality}"
-                            )
-                        
-                        logger.info(f"Video DIRECT URL orqali yuborildi: {title}")
-                        return  # Direct ishlasa, keyingi kodga o'tmaymiz
-                    
-            except Exception as e:
-                logger.warning(f"Direct URL yuborish ishlamadi, streaming'ga o'tilmoqda: {e}")
         
         # Agar DIRECT ishlamasa, STREAMING orqali yuklaymiz (eski usul)
         # Lekin AVVAL hajmni tekshiramiz!
@@ -779,6 +838,116 @@ async def download_video(query, url, quality='best', context=None):
                 raise FileNotFoundError(f"Video fayl topilmadi: {video_file}")
         
         # Faylni yuborish
+        # Yuborishdan oldin 50MB cheklovni yakuniy faylga nisbatan ham tekshiramiz
+        final_size = os.path.getsize(video_file)
+        if final_size > 50 * 1024 * 1024:
+            size_mb = final_size / (1024 * 1024)
+            # YouTube uchun bo'lib yuborishga harakat qilamiz (ffmpeg kerak)
+            is_youtube = 'youtube.com' in url or 'youtu.be' in url
+            ffmpeg_available = shutil.which('ffmpeg') is not None and shutil.which('ffprobe') is not None
+            if is_youtube and ffmpeg_available:
+                await query.message.edit_text(
+                    "📦 Video katta ekan (>50MB). Endi bo'lib yuborishga harakat qilaman..."
+                )
+                try:
+                    # Davomiylikni olish (ffprobe)
+                    def get_duration_seconds(path: str) -> float:
+                        try:
+                            result = subprocess.run(
+                                [
+                                    'ffprobe','-v','error','-show_entries','format=duration',
+                                    '-of','default=noprint_wrappers=1:nokey=1', path
+                                ],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True
+                            )
+                            return float(result.stdout.strip())
+                        except Exception:
+                            return 0.0
+                    duration = get_duration_seconds(video_file)
+                    # O'rtacha bitrate (byte/s)
+                    avg_bps = final_size / duration if duration > 0 else (5 * 1024 * 1024)  # fallback ~5MB/s
+                    # 48MB (xavfsiz limit) uchun maksimal segment uzunligi
+                    max_segment_seconds = max(15, int((48 * 1024 * 1024) / avg_bps))
+                    max_segment_seconds = min(max_segment_seconds, 300)  # juda uzun bo'lmasin
+                    # Segmentlash
+                    base_name = os.path.splitext(os.path.basename(video_file))[0]
+                    out_pattern = os.path.join(DOWNLOAD_FOLDER, f"{base_name}_part_%03d.mp4")
+                    cmd = [
+                        'ffmpeg','-hide_banner','-loglevel','error','-y',
+                        '-i', video_file,
+                        '-c','copy',
+                        '-f','segment','-segment_time', str(max_segment_seconds),
+                        '-reset_timestamps','1',
+                        out_pattern
+                    ]
+                    subprocess.run(cmd, check=True)
+
+                    # Asl faylni o'chiramiz
+                    try:
+                        os.remove(video_file)
+                    except Exception:
+                        pass
+
+                    # Yaratilgan qismlarni topish va yuborish
+                    parts = sorted([
+                        os.path.join(DOWNLOAD_FOLDER, f) for f in os.listdir(DOWNLOAD_FOLDER)
+                        if f.startswith(base_name + '_part_') and f.endswith('.mp4')
+                    ])
+                    if not parts:
+                        await query.message.edit_text(
+                            "❌ Bo'lib yuborish muvaffaqiyatsiz. Iltimos pastroq sifatni tanlang."
+                        )
+                        return
+                    # 50MB dan katta bo'lib qolgan qismlarni tashlab ketamiz
+                    sendable_parts = [p for p in parts if os.path.getsize(p) <= 50 * 1024 * 1024]
+                    total = len(sendable_parts)
+                    if total == 0:
+                        await query.message.edit_text(
+                            "❌ Qismlar ham 50MB dan katta chiqdi. Pastroq sifatni tanlang."
+                        )
+                        # Tozalash
+                        for p in parts:
+                            try: os.remove(p)
+                            except Exception: pass
+                        return
+                    await query.message.edit_text(
+                        f"📤 {total} ta qism yuborilmoqda..."
+                    )
+                    for idx, part in enumerate(sendable_parts, start=1):
+                        with open(part, 'rb') as f:
+                            await query.message.reply_video(
+                                video=f,
+                                caption=f"📹 {idx}/{total}",
+                                supports_streaming=True
+                            )
+                        try:
+                            os.remove(part)
+                        except Exception:
+                            pass
+                    # Yakuniy holat
+                    await query.message.delete()
+                    return
+                except Exception as e:
+                    logger.error(f"Segmentlashda xatolik: {e}")
+                    await query.message.edit_text(
+                        "❌ Video 50 MB dan katta ekan va bo'lib yuborishda xatolik yuz berdi.\n"
+                        f"📊 Hajm: {size_mb:.1f} MB\n\n"
+                        "🔁 Iltimos pastroq sifatni tanlang."
+                    )
+                    return
+            else:
+                # Faylni o'chirish va foydalanuvchiga xabar
+                try:
+                    os.remove(video_file)
+                except Exception:
+                    pass
+                await query.message.edit_text(
+                    "❌ Video 50 MB dan katta ekan.\n"
+                    f"📊 Hajm: {size_mb:.1f} MB\n\n"
+                    "🔁 Iltimos pastroq sifatni tanlang yoki Instagram/Pinterest bo'lsa 🚀 Direct ni sinab ko'ring."
+                )
+                return
+
         with open(video_file, 'rb') as video:
             await query.message.reply_video(
                 video=video,
