@@ -128,10 +128,42 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
             if os.path.exists(cookies_file):
                 ydl_opts_check['cookiefile'] = cookies_file
+                # Instagram uchun cookies parameter ham kerak
+                ydl_opts_check['cookies'] = cookies_file
                 logger.info("Cookies fayli Instagram uchun ishlatilmoqda")
             
             with yt_dlp.YoutubeDL(ydl_opts_check) as ydl:
                 info = ydl.extract_info(url, download=False)
+                
+                # Story/Highlights URL'larni avtomatik yuklash (format tanlash yo'q)
+                is_story = '/stories/' in url or '/s/' in url
+                
+                if is_story:
+                    # Story/Highlights - to'g'ridan-to'g'ri video sifatida yuklaymiz
+                    await update.message.reply_text("📱 Story/Highlights yuklanmoqda...")
+                    
+                    # Video URL mavjudmi?
+                    video_url = info.get('url')
+                    if video_url and info.get('vcodec') != 'none':
+                        # Video
+                        try:
+                            await update.message.reply_video(video=video_url, caption="✅ Instagram Story/Highlights")
+                            return
+                        except Exception as e:
+                            logger.error(f"Story video yuborishda xatolik: {e}")
+                    
+                    # Rasm bo'lsa
+                    photo_url = info.get('thumbnail') or info.get('url')
+                    if photo_url:
+                        try:
+                            await update.message.reply_photo(photo=photo_url, caption="✅ Instagram Story/Highlights")
+                            return
+                        except Exception as e:
+                            logger.error(f"Story rasm yuborishda xatolik: {e}")
+                    
+                    # Fallback: format selection
+                    await update.message.reply_text("❌ Story/Highlights avtomatik yuklanmadi. Format tanlang:")
+                    # Format selection'ga o'tamiz
                 
                 # Video formatlar mavjudligini tekshirish
                 formats = info.get('formats', [])
@@ -164,8 +196,19 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             await update.message.reply_text(f"✅ {count} ta rasm yuklandi!")
                             return  # Muvaffaqiyatli yuklandi, to'xtaymiz
                         else:
-                            await update.message.reply_text("❌ Carousel rasmlar topilmadi. Video formatni sinab ko'ring.")
-                            # Videoga o'tishga ruxsat berish (return yo'q)
+                            # Carousel rasm topilmadi - lekin xato bo'lmasa format selection'ga o'tmaymiz
+                            logger.warning("Carousel entries mavjud lekin photo_url topilmadi")
+                            # Fallback: entries ichidagi video formatlarni tekshiramiz
+                            video_found = False
+                            for entry in info['entries'][:1]:  # Birinchi entry'ni tekshiramiz
+                                if entry.get('vcodec') != 'none':
+                                    video_found = True
+                                    break
+                            
+                            if not video_found:
+                                await update.message.reply_text("❌ Carousel media topilmadi.")
+                                return  # Format selection'ga o'tmaymiz
+                            # Aks holda, format selection'ga o'tamiz
                     else:
                         # Bitta rasm
                         photo_url = (
