@@ -52,8 +52,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_instagram_with_instaloader(update: Update, url: str):
     """Instagram postlarni instaloader bilan yuklab beradi"""
     try:
+        # Stories/Highlights uchun instaloader ishlatmaymiz (yt-dlp yaxshiroq)
+        if '/stories/' in url or '/s/' in url:
+            logger.info("Story/Highlights - yt-dlp bilan ishlaydi")
+            return False  # yt-dlp'ga yo'naltirish
+        
         # Shortcode ni URL'dan ajratib olamiz
-        # URL formatlar: /p/SHORTCODE/, /reel/SHORTCODE/, /stories/username/ID/
+        # URL formatlar: /p/SHORTCODE/, /reel/SHORTCODE/
         shortcode = None
         
         if '/p/' in url or '/reel/' in url:
@@ -206,13 +211,12 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.info("Instagram instaloader bilan muvaffaqiyatli yuklandi")
                 return
             else:
-                # Instaloader ishlamadi, yt-dlp bilan urinib ko'ramiz
+                # Instaloader ishlamadi, yt-dlp bilan urinib ko'ramiz (foydalanuvchiga xabar yo'q)
                 logger.warning("Instaloader ishlamadi, yt-dlp bilan sinab ko'rilmoqda...")
-                await update.message.reply_text("⚠️ Instaloader ishlamadi, boshqa usul bilan sinab ko'ramiz...")
                 
         except Exception as e:
             logger.error(f"Instagram instaloader xatolik: {e}")
-            await update.message.reply_text("⚠️ Xatolik yuz berdi, boshqa usul bilan sinab ko'ramiz...")
+            # Xatolik bo'lsa ham foydalanuvchiga texnik xabar bermaymiz, shunchaki fallback ishlatamiz
             
             # Media type tekshirish (cookies bilan)
             ydl_opts_check = {
@@ -702,11 +706,30 @@ async def download_video(query, url, quality='best', context=None):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             video_title = info.get('title', 'video')
-            video_file = ydl.prepare_filename(info)
+            
+            # Fayl nomini topish - playlist bo'lsa birinchi entry'ni olamiz
+            if 'entries' in info and info['entries']:
+                # Playlist (masalan Instagram story)
+                first_entry = info['entries'][0]
+                video_file = ydl.prepare_filename(first_entry)
+            else:
+                # Bitta video
+                video_file = ydl.prepare_filename(info)
         
         # Fayl mavjudligini tekshirish
         if not os.path.exists(video_file):
-            raise FileNotFoundError(f"Video fayl topilmadi: {video_file}")
+            # Extension muammosi bo'lsa, downloads papkasidan topishga harakat qilamiz
+            base_name = os.path.splitext(video_file)[0]
+            possible_extensions = ['.mp4', '.webm', '.mkv', '.flv']
+            
+            for ext in possible_extensions:
+                potential_file = base_name + ext
+                if os.path.exists(potential_file):
+                    video_file = potential_file
+                    logger.info(f"Video fayl topildi: {video_file}")
+                    break
+            else:
+                raise FileNotFoundError(f"Video fayl topilmadi: {video_file}")
         
         # Faylni yuborish
         with open(video_file, 'rb') as video:
@@ -964,7 +987,15 @@ async def download_audio(query, url, context=None):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             audio_title = info.get('title', 'audio')
-            downloaded_file = ydl.prepare_filename(info)
+            
+            # Fayl nomini topish - playlist bo'lsa birinchi entry'ni olamiz
+            if 'entries' in info and info['entries']:
+                # Playlist (masalan Instagram story)
+                first_entry = info['entries'][0]
+                downloaded_file = ydl.prepare_filename(first_entry)
+            else:
+                # Bitta audio
+                downloaded_file = ydl.prepare_filename(info)
         
         # Agar FFmpeg mavjud bo'lsa MP3 fayl, yo'q bo'lsa asl fayl
         if audio_ext == 'mp3':
@@ -974,7 +1005,18 @@ async def download_audio(query, url, context=None):
         
         # Fayl mavjudligini tekshirish
         if not os.path.exists(audio_file):
-            raise FileNotFoundError(f"Audio fayl topilmadi: {audio_file}")
+            # Extension muammosi bo'lsa, downloads papkasidan topishga harakat qilamiz
+            base_name = os.path.splitext(audio_file)[0]
+            possible_extensions = ['.m4a', '.webm', '.mp3', '.opus', '.ogg']
+            
+            for ext in possible_extensions:
+                potential_file = base_name + ext
+                if os.path.exists(potential_file):
+                    audio_file = potential_file
+                    logger.info(f"Audio fayl topildi: {audio_file}")
+                    break
+            else:
+                raise FileNotFoundError(f"Audio fayl topilmadi: {audio_file}")
         
         # Fayl hajmini tekshirish (50 MB limit)
         file_size = os.path.getsize(audio_file)
