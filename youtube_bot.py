@@ -156,7 +156,12 @@ async def show_quality_options(query, url, context):
             'quiet': True,
             'no_warnings': True,
             'socket_timeout': 30,
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['tv_embedded'],
+                    'player_skip': ['webpage', 'configs'],
+                }
+            },
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -280,7 +285,12 @@ async def download_video(query, url, quality='best'):
             'retries': 5,
             'fragment_retries': 5,
             'progress_hooks': [progress_hook],  # Progress callback
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['tv_embedded'],
+                    'player_skip': ['webpage', 'configs'],
+                }
+            },
         }
         
         # Pinterest va YouTube uchun turli formatlar
@@ -432,7 +442,12 @@ async def download_audio(query, url):
             'retries': 5,
             'fragment_retries': 5,
             'progress_hooks': [progress_hook],  # Progress callback
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['tv_embedded'],
+                    'player_skip': ['webpage', 'configs'],
+                }
+            },
         }
         
         # FFmpeg mavjud bo'lsa MP3 ga o'giramiz
