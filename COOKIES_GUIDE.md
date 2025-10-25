@@ -1,6 +1,6 @@
-# YouTube Cookies Qo'shish (YouTube Bot Detection'ni Bypass Qilish)
+# Cookies Qo'shish (YouTube & Instagram Bot Detection Bypass)
 
-Agar Railway yoki boshqa cloud serverda YouTube videolar yuklanmasa, cookies yordamida muammoni hal qilishingiz mumkin.
+Agar Railway yoki boshqa cloud serverda YouTube yoki Instagram kontentlar yuklanmasa, cookies yordamida muammoni hal qilishingiz mumkin.
 
 ## 📋 Qadamlar:
 
@@ -12,22 +12,29 @@ Agar Railway yoki boshqa cloud serverda YouTube videolar yuklanmasa, cookies yor
 **Firefox uchun:**
 - [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/) addon'ni o'rnating
 
-### 2️⃣ **YouTube'ga Sign In Qiling**
+### 2️⃣ **Platform'ga Sign In Qiling**
 
+**YouTube uchun:**
 1. Browser'da [youtube.com](https://youtube.com) ga kiring
 2. Google account bilan sign in qiling
 3. Bir necha video ochib ko'ring (YouTube sizni "trust" qilishi uchun)
 
+**Instagram uchun:**
+1. Browser'da [instagram.com](https://instagram.com) ga kiring
+2. Instagram account bilan sign in qiling
+3. Bir necha post/story ochib ko'ring
+4. **MUHIM:** Private story'lar uchun o'sha account'dan login qiling
+
 ### 3️⃣ **Cookies Export Qiling**
 
 **Extension orqali:**
-1. YouTube sahifasida extension ikonkasini bosing
+1. YouTube/Instagram sahifasida extension ikonkasini bosing
 2. "Export" yoki "Download" tugmasini bosing
-3. `youtube_cookies.txt` nomi bilan saqlang
+3. `youtube_cookies.txt` nomi bilan saqlang (Instagram uchun ham shu fayl ishlatiladi)
 
 **Yoki yt-dlp orqali:**
 ```bash
-# Chrome'dan
+# Chrome'dan (YouTube + Instagram)
 yt-dlp --cookies-from-browser chrome --cookies youtube_cookies.txt "https://www.youtube.com"
 
 # Firefox'dan
@@ -36,6 +43,8 @@ yt-dlp --cookies-from-browser firefox --cookies youtube_cookies.txt "https://www
 # Edge'dan
 yt-dlp --cookies-from-browser edge --cookies youtube_cookies.txt "https://www.youtube.com"
 ```
+
+**💡 Eslatma:** Bir cookies fayli YouTube va Instagram uchun ham ishlaydi!
 
 ### 4️⃣ **Cookies Faylni Bot Papkasiga Joylashtiring**
 

@@ -118,11 +118,17 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await update.message.reply_text("🔍 Instagram media tekshirilmoqda...")
             
-            # Media type tekshirish
+            # Media type tekshirish (cookies bilan)
             ydl_opts_check = {
                 'quiet': True,
                 'no_warnings': True,
             }
+            
+            # Cookies fayl mavjud bo'lsa ishlatamiz (Instagram uchun ham)
+            cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+            if os.path.exists(cookies_file):
+                ydl_opts_check['cookiefile'] = cookies_file
+                logger.info("Cookies fayli Instagram uchun ishlatilmoqda")
             
             with yt_dlp.YoutubeDL(ydl_opts_check) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -139,22 +145,40 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Rasm URL'ini olamiz
                     if 'entries' in info:
                         # Carousel - har bir rasmni yuklaymiz
-                        media_group = []
+                        count = 0
                         for entry in info['entries'][:10]:  # Maksimum 10 ta rasm
-                            photo_url = entry.get('url') or entry.get('thumbnail')
+                            # Entry har xil formatda bo'lishi mumkin
+                            photo_url = (
+                                entry.get('url') or 
+                                entry.get('thumbnail') or
+                                entry.get('thumbnails', [{}])[0].get('url')
+                            )
                             if photo_url:
                                 try:
                                     await update.message.reply_photo(photo=photo_url)
+                                    count += 1
                                 except Exception as e:
                                     logger.error(f"Rasm yuborishda xatolik: {e}")
-                        await update.message.reply_text(f"✅ {len(info['entries'])} ta rasm yuklandi!")
+                        
+                        if count > 0:
+                            await update.message.reply_text(f"✅ {count} ta rasm yuklandi!")
+                            return  # Muvaffaqiyatli yuklandi, to'xtaymiz
+                        else:
+                            await update.message.reply_text("❌ Carousel rasmlar topilmadi. Video formatni sinab ko'ring.")
+                            # Videoga o'tishga ruxsat berish (return yo'q)
                     else:
-                        photo_url = info.get('thumbnail') or info.get('url')
+                        # Bitta rasm
+                        photo_url = (
+                            info.get('url') or 
+                            info.get('thumbnail') or
+                            (info.get('thumbnails', [{}])[0].get('url') if info.get('thumbnails') else None)
+                        )
                         if photo_url:
                             await update.message.reply_photo(photo=photo_url, caption="✅ Instagram rasmi")
+                            return  # Muvaffaqiyatli yuklandi
                         else:
-                            await update.message.reply_text("❌ Rasm URL topilmadi.")
-                    return
+                            await update.message.reply_text("❌ Rasm URL topilmadi. Video formatni sinab ko'ring.")
+                            # Videoga o'tishga ruxsat berish (return yo'q)
                     
         except Exception as e:
             logger.error(f"Instagram media type tekshirishda xatolik: {e}")
