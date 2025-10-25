@@ -202,23 +202,24 @@ async def show_quality_options(query, url, context):
         
         # Tugmalarni yaratish
         keyboard = []
-        qualities = ['144p', '240p', '360p', '480p', '720p', '1080p']
         
-        for quality in qualities:
-            if quality in quality_map:
-                size = quality_map[quality]['size']
-                
-                # Hajm ma'lum bo'lsa tekshiramiz
-                if size > 0:
-                    size_mb = size / (1024 * 1024)
-                    # Faqat 50MB dan kichik bo'lganlarni ko'rsatish
-                    if size_mb <= 50:
-                        button_text = f"📹 {quality} • {size_mb:.1f} MB"
-                        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"video_{quality}")])
-                else:
-                    # Hajm noma'lum (m3u8 format) - baribir ko'rsatamiz
-                    button_text = f"📹 {quality}"
+        # Quality map'dan avtomatik sort qilib olish (pastdan yuqoriga)
+        sorted_qualities = sorted(quality_map.items(), key=lambda x: x[1]['height'])
+        
+        for quality, info in sorted_qualities:
+            size = info['size']
+            
+            # Hajm ma'lum bo'lsa tekshiramiz
+            if size > 0:
+                size_mb = size / (1024 * 1024)
+                # Faqat 50MB dan kichik bo'lganlarni ko'rsatish
+                if size_mb <= 50:
+                    button_text = f"📹 {quality} • {size_mb:.1f} MB"
                     keyboard.append([InlineKeyboardButton(button_text, callback_data=f"video_{quality}")])
+            else:
+                # Hajm noma'lum (m3u8 format) - baribir ko'rsatamiz
+                button_text = f"📹 {quality}"
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=f"video_{quality}")])
         
         if not keyboard:
             await query.edit_message_text(
