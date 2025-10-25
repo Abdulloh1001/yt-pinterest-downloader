@@ -252,34 +252,43 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 info = ydl.extract_info(url, download=False)
                 
                 # Story/Highlights URL'larni avtomatik yuklash (format tanlash yo'q)
-                is_story = '/stories/' in url or '/s/' in url
+                is_story = '/stories/' in url
                 
                 if is_story:
-                    # Story/Highlights - to'g'ridan-to'g'ri video sifatida yuklaymiz
+                    # Story/Highlights - to'g'ridan-to'g'ri yuklash
                     await update.message.reply_text("📱 Story/Highlights yuklanmoqda...")
                     
-                    # Video URL mavjudmi?
-                    video_url = info.get('url')
-                    if video_url and info.get('vcodec') != 'none':
-                        # Video
-                        try:
-                            await update.message.reply_video(video=video_url, caption="✅ Instagram Story/Highlights")
-                            return
-                        except Exception as e:
-                            logger.error(f"Story video yuborishda xatolik: {e}")
+                    # Video yoki rasm ekanligini tekshiramiz
+                    has_video_format = False
+                    if info.get('formats'):
+                        has_video_format = any(f.get('vcodec') != 'none' for f in info.get('formats', []))
                     
-                    # Rasm bo'lsa
-                    photo_url = info.get('thumbnail') or info.get('url')
-                    if photo_url:
-                        try:
-                            await update.message.reply_photo(photo=photo_url, caption="✅ Instagram Story/Highlights")
-                            return
-                        except Exception as e:
-                            logger.error(f"Story rasm yuborishda xatolik: {e}")
+                    if has_video_format:
+                        # Video story
+                        video_url = info.get('url')
+                        if video_url:
+                            try:
+                                await update.message.reply_video(video=video_url, caption="✅ Instagram Story")
+                                return
+                            except Exception as e:
+                                logger.error(f"Story video yuborishda xatolik: {e}")
+                                await update.message.reply_text(f"❌ Story video yuklashda xatolik: {str(e)[:100]}")
+                                return
+                    else:
+                        # Rasm story
+                        photo_url = info.get('thumbnail') or info.get('url')
+                        if photo_url:
+                            try:
+                                await update.message.reply_photo(photo=photo_url, caption="✅ Instagram Story")
+                                return
+                            except Exception as e:
+                                logger.error(f"Story rasm yuborishda xatolik: {e}")
+                                await update.message.reply_text(f"❌ Story rasm yuklashda xatolik: {str(e)[:100]}")
+                                return
                     
-                    # Fallback: format selection
-                    await update.message.reply_text("❌ Story/Highlights avtomatik yuklanmadi. Format tanlang:")
-                    # Format selection'ga o'tamiz
+                    # Agar hech narsa yuklanmasa
+                    await update.message.reply_text("❌ Story/Highlights yuklash muvaffaqiyatsiz bo'ldi. URL to'g'rimi?")
+                    return  # Format selection'ga o'tmaymiz
                 
                 # Video formatlar mavjudligini tekshirish
                 formats = info.get('formats', [])
