@@ -24,17 +24,13 @@
 .youtube.com	TRUE	/	TRUE	1824479456	__Secure-YT_TVFAS	t=489278&s=2
 .youtube.com	TRUE	/	TRUE	1776959456	DEVICE_INFO	ChxOelUyTlRFMk56QXhNRGcyT0RBNE5qY3pPUT09EODj88cGGNC+88cG
 .youtube.com	TRUE	/tv	TRUE	1794239456	__Secure-YT_DERP	CMG0l9adAQ%3D%3D
-# Netscape HTTP Cookie File
-# https://curl.haxx.se/rfc/cookie_spec.html
-# This is a generated file! Do not edit.
-
-.instagram.com	TRUE	/	TRUE	1795977818	csrftoken	kfxkG9aJ_QWoXX7WbijwYb
 .instagram.com	TRUE	/	TRUE	1795977736	datr	Bxr9aKA6oD5ft-LpRQbSK-VN
 .instagram.com	TRUE	/	TRUE	1792953760	ig_did	617139DD-FBB7-4BD6-B447-FF69304C9C60
 .instagram.com	TRUE	/	TRUE	1795977736	ps_l	1
 .instagram.com	TRUE	/	TRUE	1795977736	ps_n	1
-.instagram.com	TRUE	/	TRUE	1762022568	wd	1854x960
+.instagram.com	TRUE	/	TRUE	1762024720	wd	1854x960
 .instagram.com	TRUE	/	TRUE	1795977748	mid	aP0aBwAEAAFt2ZjCPL4bA7BMXgZ6
-.instagram.com	TRUE	/	TRUE	1792953760	sessionid	73608881882%3AoVP8CcWr2lhron%3A17%3AAYgXpaB82MqvYHPfAiH3X3nB9U1Dsb22wj5o2FxViw
-.instagram.com	TRUE	/	TRUE	1769193818	ds_user_id	73608881882
-.instagram.com	TRUE	/	TRUE	0	rur	"LDC\05473608881882\0541792953818:01fe16fa8ad073b1fb8a31d11efc6239ef5e5d11d13920d265bf0350c637931c236071d5"
+.instagram.com	TRUE	/	TRUE	0	rur	"LDC\05473608881882\0541792956210:01fe7b7d3f1206114a4eb229bdc03ed98247815d14a98d52731c2093fb1922e52d4198f8"
+.instagram.com	TRUE	/	TRUE	1795980210	csrftoken	jSbXw4x0HHw2X9AVLCSwWGhjFHA3o26E
+.instagram.com	TRUE	/	TRUE	1792955908	sessionid	73608881882%3Afle5xED2QKVRct%3A9%3AAYhpOl0ABw0lbJhTJ0qdvOO1dYSHl8QcmC0DRce9lw
+.instagram.com	TRUE	/	TRUE	1769196210	ds_user_id	73608881882

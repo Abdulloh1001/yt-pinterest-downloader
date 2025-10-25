@@ -122,6 +122,7 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ydl_opts_check = {
                 'quiet': True,
                 'no_warnings': True,
+                'ignore_no_formats_error': True,  # Rasm postlar uchun xatolikni ignore qilish
             }
             
             # Cookies fayl mavjud bo'lsa ishlatamiz (Instagram uchun ham)
