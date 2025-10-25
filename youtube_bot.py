@@ -284,10 +284,15 @@ async def download_video(query, url, quality='best', context=None):
                     title = info.get('title', 'Video')
                     filesize = info.get('filesize') or info.get('filesize_approx', 0)
                     
-                    # Agar URL mavjud va filesize ≤50MB bo'lsa, direct yuborish
-                    if video_url and filesize and filesize <= 50 * 1024 * 1024:
-                        logger.info(f"Direct URL orqali yuborilmoqda: {title} ({filesize/(1024*1024):.1f}MB)")
-                        await query.edit_message_text("📤 Video to'g'ridan-to'g'ri yuborilmoqda...")
+                    # Agar URL mavjud bo'lsa, DOIM direct yuboramiz (hajmga qaramay)
+                    # Telegram URL orqali 50MB+ fayllarni qabul qiladi!
+                    if video_url:
+                        size_mb = filesize / (1024*1024) if filesize else 0
+                        logger.info(f"Direct URL orqali yuborilmoqda: {title} ({size_mb:.1f}MB)")
+                        await query.edit_message_text(
+                            f"📤 Video to'g'ridan-to'g'ri yuborilmoqda...\n"
+                            f"📊 Hajm: {size_mb:.1f} MB" if size_mb > 0 else "📤 Video yuborilmoqda..."
+                        )
                         
                         user_id = query.message.chat_id
                         message_id = query.message.message_id
@@ -321,6 +326,37 @@ async def download_video(query, url, quality='best', context=None):
                 logger.warning(f"Direct URL yuborish ishlamadi, streaming'ga o'tilmoqda: {e}")
         
         # Agar DIRECT ishlamasa, STREAMING orqali yuklaymiz (eski usul)
+        # Lekin AVVAL hajmni tekshiramiz!
+        await query.edit_message_text("🔍 Video hajmi tekshirilmoqda...")
+        
+        # Video hajmini olish (yuklab olmasdan)
+        ydl_opts_check = {
+            'quiet': True,
+            'no_warnings': True,
+            'format': f'best[height<={quality[:-1]}]' if quality != 'best' else 'best',
+        }
+        
+        cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+        if os.path.exists(cookies_file):
+            ydl_opts_check['cookiefile'] = cookies_file
+        
+        with yt_dlp.YoutubeDL(ydl_opts_check) as ydl:
+            info_check = ydl.extract_info(url, download=False)
+            filesize_check = info_check.get('filesize') or info_check.get('filesize_approx', 0)
+            
+            # Agar 50MB dan katta bo'lsa, xabar beramiz
+            if filesize_check > 50 * 1024 * 1024:
+                size_mb = filesize_check / (1024 * 1024)
+                await query.edit_message_text(
+                    f"❌ Video juda katta!\n\n"
+                    f"📊 Video hajmi: {size_mb:.1f} MB\n"
+                    f"📊 Telegram limiti: 50 MB\n\n"
+                    f"💡 Pastroq sifatni tanlang:\n"
+                    f"• 480p yoki 360p ni sinab ko'ring"
+                )
+                logger.warning(f"Video juda katta: {size_mb:.1f}MB > 50MB")
+                return
+        
         await query.edit_message_text("⏳ Video serverga yuklanmoqda...")
 
         
@@ -505,10 +541,14 @@ async def download_audio(query, url, context=None):
                     title = info.get('title', 'Audio')
                     filesize = info.get('filesize') or info.get('filesize_approx', 0)
                     
-                    # Agar URL mavjud va filesize ≤50MB bo'lsa, direct yuborish
-                    if audio_url and filesize and filesize <= 50 * 1024 * 1024:
-                        logger.info(f"Direct URL orqali yuborilmoqda (audio): {title} ({filesize/(1024*1024):.1f}MB)")
-                        await query.edit_message_text("📤 Audio to'g'ridan-to'g'ri yuborilmoqda...")
+                    # Agar URL mavjud bo'lsa, DOIM direct yuboramiz (hajmga qaramay)
+                    if audio_url:
+                        size_mb = filesize / (1024*1024) if filesize else 0
+                        logger.info(f"Direct URL orqali yuborilmoqda (audio): {title} ({size_mb:.1f}MB)")
+                        await query.edit_message_text(
+                            f"📤 Audio to'g'ridan-to'g'ri yuborilmoqda...\n"
+                            f"📊 Hajm: {size_mb:.1f} MB" if size_mb > 0 else "📤 Audio yuborilmoqda..."
+                        )
                         
                         user_id = query.message.chat_id
                         
@@ -541,6 +581,37 @@ async def download_audio(query, url, context=None):
                 logger.warning(f"Direct URL yuborish ishlamadi (audio), streaming'ga o'tilmoqda: {e}")
         
         # Agar DIRECT ishlamasa, STREAMING orqali yuklaymiz (eski usul)
+        # Lekin AVVAL hajmni tekshiramiz!
+        await query.edit_message_text("🔍 Audio hajmi tekshirilmoqda...")
+        
+        # Audio hajmini olish (yuklab olmasdan)
+        ydl_opts_check = {
+            'quiet': True,
+            'no_warnings': True,
+            'format': 'bestaudio/best',
+        }
+        
+        cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+        if os.path.exists(cookies_file):
+            ydl_opts_check['cookiefile'] = cookies_file
+        
+        with yt_dlp.YoutubeDL(ydl_opts_check) as ydl:
+            info_check = ydl.extract_info(url, download=False)
+            filesize_check = info_check.get('filesize') or info_check.get('filesize_approx', 0)
+            
+            # Agar 50MB dan katta bo'lsa, xabar beramiz
+            if filesize_check > 50 * 1024 * 1024:
+                size_mb = filesize_check / (1024 * 1024)
+                await query.edit_message_text(
+                    f"❌ Audio juda katta!\n\n"
+                    f"📊 Audio hajmi: {size_mb:.1f} MB\n"
+                    f"📊 Telegram limiti: 50 MB\n\n"
+                    f"💡 Bu video juda uzun.\n"
+                    f"Qisqaroq qism linkini yuboring."
+                )
+                logger.warning(f"Audio juda katta: {size_mb:.1f}MB > 50MB")
+                return
+        
         await query.edit_message_text("⏳ Audio serverga yuklanmoqda...")
         
         # Unique fayl nomi yaratish
