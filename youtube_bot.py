@@ -157,6 +157,7 @@ async def show_quality_options(query, url, context):
             'no_warnings': True,
             'socket_timeout': 30,
             'age_limit': None,  # Age restriction'ni o'tkazib yuborish
+            'format': 'best',  # Default format - eng yaxshi sifat
         }
         
         # Cookies fayl mavjud bo'lsa ishlatamiz
