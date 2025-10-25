@@ -212,10 +212,21 @@ async def show_quality_options(query, url, context):
         
     except Exception as e:
         logger.error(f"Sifat olishda xatolik: {e}")
-        await query.edit_message_text(
-            "❌ Sifatlarni olishda xatolik yuz berdi.\n"
-            f"Xatolik: {str(e)}"
-        )
+        
+        if "Sign in to confirm" in str(e) or ("bot" in str(e).lower() and "youtube" in str(e).lower()):
+            await query.edit_message_text(
+                "🤖 YouTube bot detection xatosi!\n\n"
+                "YouTube bu videoni bot deb aniqladi.\n\n"
+                "✅ Yechimlar:\n"
+                "• Boshqa YouTube videoni sinab ko'ring\n"
+                "• Bir necha daqiqa kutib qaytadan urinib ko'ring\n\n"
+                "⚠️ Ba'zi videolar maxsus himoyalangan."
+            )
+        else:
+            await query.edit_message_text(
+                "❌ Sifatlarni olishda xatolik yuz berdi.\n"
+                f"Xatolik: {str(e)[:100]}"
+            )
 
 
 async def download_video(query, url, quality='best'):
@@ -325,7 +336,17 @@ async def download_video(query, url, quality='best'):
         # Xatolik turini aniqlash
         error_message = "❌ Video yuklashda xatolik yuz berdi."
         
-        if "403" in str(e) or "forbidden" in str(e).lower():
+        if "Sign in to confirm" in str(e) or "bot" in str(e).lower():
+            error_message = (
+                "🤖 YouTube bot detection xatosi!\n\n"
+                "YouTube ba'zi videolarni bot deb aniqlayapti.\n\n"
+                "✅ Yechimlar:\n"
+                "• Boshqa YouTube videoni sinab ko'ring\n"
+                "• Bir necha daqiqa kutib qaytadan urinib ko'ring\n"
+                "• Video public (ochiq) ekanligiga ishonch hosil qiling\n\n"
+                "⚠️ Ba'zi videolar maxsus himoyalangan bo'lishi mumkin."
+            )
+        elif "403" in str(e) or "forbidden" in str(e).lower():
             error_message = (
                 "🚫 Ruxsat berilmadi (403 Forbidden)\n\n"
                 "Pinterest ba'zan botlarni bloklashi mumkin.\n\n"
@@ -488,7 +509,17 @@ async def download_audio(query, url):
         # Xatolik turini aniqlash
         error_message = "❌ Audio yuklashda xatolik yuz berdi."
         
-        if "403" in str(e) or "forbidden" in str(e).lower():
+        if "Sign in to confirm" in str(e) or ("bot" in str(e).lower() and "youtube" in str(e).lower()):
+            error_message = (
+                "🤖 YouTube bot detection xatosi!\n\n"
+                "YouTube ba'zi videolarni bot deb aniqlayapti.\n\n"
+                "✅ Yechimlar:\n"
+                "• Boshqa YouTube videoni sinab ko'ring\n"
+                "• Bir necha daqiqa kutib qaytadan urinib ko'ring\n"
+                "• Video public (ochiq) ekanligiga ishonch hosil qiling\n\n"
+                "⚠️ Ba'zi videolar maxsus himoyalangan bo'lishi mumkin."
+            )
+        elif "403" in str(e) or "forbidden" in str(e).lower():
             error_message = (
                 "🚫 Ruxsat berilmadi (403 Forbidden)\n\n"
                 "Pinterest ba'zan botlarni bloklashi mumkin.\n\n"
