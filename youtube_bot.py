@@ -166,10 +166,10 @@ async def show_quality_options(query, url, context):
         quality_map = {}
         for f in formats:
             height = f.get('height')
-            filesize = f.get('filesize') or f.get('filesize_approx', 0)
+            filesize = f.get('filesize') or f.get('filesize_approx') or 0
             
-            # Faqat video+audio bo'lgan formatlar
-            if height and filesize > 0:
+            # Faqat video bo'lgan va hajmi ma'lum formatlar
+            if height and filesize and filesize > 0:
                 quality_key = f"{height}p"
                 
                 # Eng kichik hajmli formatni saqlash
@@ -402,11 +402,6 @@ async def download_audio(query, url):
         
         ydl_opts = {
             'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
             'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{temp_filename}.%(ext)s'),
             'quiet': True,
             'no_warnings': True,
@@ -415,6 +410,21 @@ async def download_audio(query, url):
             'fragment_retries': 5,
             'progress_hooks': [progress_hook],  # Progress callback
         }
+        
+        # FFmpeg mavjud bo'lsa MP3 ga o'giramiz
+        try:
+            import subprocess
+            subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+            ydl_opts['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }]
+            audio_ext = 'mp3'
+        except:
+            # FFmpeg yo'q bo'lsa - oddiy audio formatda yuklab olamiz
+            logger.warning("FFmpeg topilmadi, oddiy audio formatda yuklanadi")
+            audio_ext = None  # Asl formatda qoladi
         
         # Pinterest uchun qo'shimcha sozlamalar
         if is_pinterest:
@@ -431,13 +441,29 @@ async def download_audio(query, url):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             audio_title = info.get('title', 'audio')
+            downloaded_file = ydl.prepare_filename(info)
         
-        # MP3 fayl nomini topish
-        audio_file = os.path.join(DOWNLOAD_FOLDER, f"{temp_filename}.mp3")
+        # Agar FFmpeg mavjud bo'lsa MP3 fayl, yo'q bo'lsa asl fayl
+        if audio_ext == 'mp3':
+            audio_file = os.path.join(DOWNLOAD_FOLDER, f"{temp_filename}.mp3")
+        else:
+            audio_file = downloaded_file
         
         # Fayl mavjudligini tekshirish
         if not os.path.exists(audio_file):
             raise FileNotFoundError(f"Audio fayl topilmadi: {audio_file}")
+        
+        # Fayl hajmini tekshirish (50 MB limit)
+        file_size = os.path.getsize(audio_file)
+        if file_size > 50 * 1024 * 1024:  # 50 MB
+            os.remove(audio_file)
+            await query.message.edit_text(
+                f"❌ Audio hajmi juda katta!\n\n"
+                f"Fayl hajmi: {file_size / (1024*1024):.1f} MB\n"
+                f"Telegram limiti: 50 MB\n\n"
+                f"Iltimos, qisqaroq yoki past sifatli audio tanlang."
+            )
+            return
         
         # Faylni yuborish
         with open(audio_file, 'rb') as audio:
