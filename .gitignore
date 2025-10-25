@@ -11,6 +11,10 @@ ENV/
 # Bot token
 .env
 
+# YouTube cookies (maxfiy!)
+youtube_cookies.txt
+cookies.txt
+
 # Downloaded files
 downloads/
 *.mp4
@@ -25,3 +29,4 @@ downloads/
 # OS
 .DS_Store
 Thumbs.db
+youtube_cookies.txt
