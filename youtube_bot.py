@@ -5,6 +5,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 import yt_dlp
 from dotenv import load_dotenv
+import instaloader
+import requests
 
 # .env faylini yuklash
 load_dotenv()
@@ -45,6 +47,85 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎵 Audio (MP3 format)",
         parse_mode='HTML'
     )
+
+
+async def handle_instagram_with_instaloader(update: Update, url: str):
+    """Instagram postlarni instaloader bilan yuklab beradi"""
+    try:
+        # Shortcode ni URL'dan ajratib olamiz
+        # URL formatlar: /p/SHORTCODE/, /reel/SHORTCODE/, /stories/username/ID/
+        shortcode = None
+        
+        if '/p/' in url or '/reel/' in url:
+            parts = url.split('/')
+            for i, part in enumerate(parts):
+                if part in ['p', 'reel'] and i + 1 < len(parts):
+                    shortcode = parts[i + 1].split('?')[0]  # Query parametrlarni olib tashlaymiz
+                    break
+        
+        if not shortcode:
+            logger.warning(f"Instagram shortcode topilmadi: {url}")
+            return False
+        
+        logger.info(f"Instagram shortcode: {shortcode}")
+        
+        # Instaloader yaratish
+        L = instaloader.Instaloader(
+            download_videos=False,
+            download_video_thumbnails=False,
+            download_geotags=False,
+            download_comments=False,
+            save_metadata=False,
+            compress_json=False,
+        )
+        
+        # Post olish
+        post = instaloader.Post.from_shortcode(L.context, shortcode)
+        
+        logger.info(f"Instagram post: {post.owner_username}, video={post.is_video}, media_count={post.mediacount}")
+        
+        # Carousel yoki bitta media?
+        if post.mediacount > 1:
+            # Carousel
+            await update.message.reply_text(f"📸 Carousel: {post.mediacount} ta media yuklanmoqda...")
+            
+            count = 0
+            for idx, node in enumerate(post.get_sidecar_nodes()):
+                try:
+                    if node.is_video:
+                        # Video
+                        video_url = node.video_url
+                        await update.message.reply_video(video=video_url, caption=f"✅ {idx+1}/{post.mediacount}")
+                        count += 1
+                    else:
+                        # Rasm
+                        photo_url = node.display_url
+                        await update.message.reply_photo(photo=photo_url)
+                        count += 1
+                except Exception as e:
+                    logger.error(f"Carousel item {idx} yuborishda xatolik: {e}")
+            
+            if count > 0:
+                await update.message.reply_text(f"✅ {count}/{post.mediacount} ta media yuklandi!")
+                return True
+        else:
+            # Bitta media
+            if post.is_video:
+                # Video
+                video_url = post.video_url
+                await update.message.reply_video(video=video_url, caption="✅ Instagram video")
+                return True
+            else:
+                # Rasm
+                photo_url = post.url
+                await update.message.reply_photo(photo=photo_url, caption="✅ Instagram rasmi")
+                return True
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Instaloader xatolik: {e}")
+        return False
 
 
 async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -113,10 +194,25 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Log kanalga yuborishda xatolik: {e}")
     
-    # Instagram uchun maxsus tekshirish - rasm yoki video?
+    # Instagram uchun maxsus tekshirish - instaloader bilan yuklab berish
     if is_instagram:
         try:
             await update.message.reply_text("🔍 Instagram media tekshirilmoqda...")
+            
+            # Instaloader bilan yuklash
+            success = await handle_instagram_with_instaloader(update, url)
+            
+            if success:
+                logger.info("Instagram instaloader bilan muvaffaqiyatli yuklandi")
+                return
+            else:
+                # Instaloader ishlamadi, yt-dlp bilan urinib ko'ramiz
+                logger.warning("Instaloader ishlamadi, yt-dlp bilan sinab ko'rilmoqda...")
+                await update.message.reply_text("⚠️ Instaloader ishlamadi, boshqa usul bilan sinab ko'ramiz...")
+                
+        except Exception as e:
+            logger.error(f"Instagram instaloader xatolik: {e}")
+            await update.message.reply_text("⚠️ Xatolik yuz berdi, boshqa usul bilan sinab ko'ramiz...")
             
             # Media type tekshirish (cookies bilan)
             ydl_opts_check = {
