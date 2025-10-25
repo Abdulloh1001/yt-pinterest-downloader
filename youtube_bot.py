@@ -175,39 +175,53 @@ async def show_quality_options(query, url, context):
             info = ydl.extract_info(url, download=False)
             formats = info.get('formats', [])
         
-        # Video+Audio formatlarini filterlash
+        # Video+Audio formatlarini filterlash (m3u8 ham qo'llab-quvvatlash)
         quality_map = {}
         for f in formats:
             height = f.get('height')
-            filesize = f.get('filesize') or f.get('filesize_approx') or 0
+            filesize = f.get('filesize') or f.get('filesize_approx')
             
-            # Faqat video bo'lgan va hajmi ma'lum formatlar
-            if height and filesize and filesize > 0:
+            # Faqat video formatlar (audio yo'q)
+            if height and f.get('vcodec') != 'none':
                 quality_key = f"{height}p"
                 
-                # Eng kichik hajmli formatni saqlash
-                if quality_key not in quality_map or filesize < quality_map[quality_key]['size']:
+                # Agar hajm ma'lum bo'lsa, eng kichik hajmli formatni saqlash
+                if quality_key not in quality_map:
+                    quality_map[quality_key] = {
+                        'size': filesize if filesize else 0,
+                        'height': height,
+                        'protocol': f.get('protocol', 'https')
+                    }
+                elif filesize and filesize < quality_map[quality_key]['size']:
                     quality_map[quality_key] = {
                         'size': filesize,
-                        'height': height
+                        'height': height,
+                        'protocol': f.get('protocol', 'https')
                     }
         
         # Tugmalarni yaratish
         keyboard = []
-        qualities = ['240p', '360p', '480p', '720p', '1080p']
+        qualities = ['144p', '240p', '360p', '480p', '720p', '1080p']
         
         for quality in qualities:
             if quality in quality_map:
-                size_mb = quality_map[quality]['size'] / (1024 * 1024)
+                size = quality_map[quality]['size']
                 
-                # Faqat 50MB dan kichik bo'lganlarni ko'rsatish
-                if size_mb <= 50:
-                    button_text = f"📹 {quality} • {size_mb:.1f} MB"
+                # Hajm ma'lum bo'lsa tekshiramiz
+                if size > 0:
+                    size_mb = size / (1024 * 1024)
+                    # Faqat 50MB dan kichik bo'lganlarni ko'rsatish
+                    if size_mb <= 50:
+                        button_text = f"📹 {quality} • {size_mb:.1f} MB"
+                        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"video_{quality}")])
+                else:
+                    # Hajm noma'lum (m3u8 format) - baribir ko'rsatamiz
+                    button_text = f"📹 {quality}"
                     keyboard.append([InlineKeyboardButton(button_text, callback_data=f"video_{quality}")])
         
         if not keyboard:
             await query.edit_message_text(
-                "❌ Afsuski, 50 MB dan kichik sifatli video topilmadi.\n"
+                "❌ Afsuski, mavjud video formatlari topilmadi.\n"
                 "Telegram orqali 50 MB dan katta fayllarni yuborish mumkin emas."
             )
             return
@@ -323,12 +337,19 @@ async def download_video(query, url, quality='best'):
         else:
             # YouTube uchun - sifatga qarab format tanlash
             if quality == 'best':
-                ydl_opts['format'] = 'best[ext=mp4]/best'
+                # Best format - MP4 yoki m3u8 (HLS)
+                ydl_opts['format'] = 'best[ext=mp4]/best/bv*+ba/b'
             else:
                 # Tanlangan sifat (240p, 360p, 480p, 720p, 1080p)
                 height = quality.replace('p', '')  # '720p' -> '720'
-                # Video+audio birgalikda yuklab olish
-                ydl_opts['format'] = f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/best[height<={height}][ext=mp4]/best'
+                # M3U8 (HLS) formatlarni ham qo'llab-quvvatlash
+                ydl_opts['format'] = (
+                    f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/'
+                    f'best[height<={height}][ext=mp4]/'
+                    f'bestvideo[height<={height}]+bestaudio/'
+                    f'best[height<={height}]/'
+                    f'best'
+                )
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
