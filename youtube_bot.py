@@ -300,12 +300,6 @@ async def download_video(query, url, quality='best'):
             'retries': 5,
             'fragment_retries': 5,
             'progress_hooks': [progress_hook],  # Progress callback
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['tv_embedded'],
-                    'player_skip': ['webpage'],
-                }
-            },
             'age_limit': None,
         }
         
@@ -331,19 +325,13 @@ async def download_video(query, url, quality='best'):
         else:
             # YouTube uchun - sifatga qarab format tanlash
             if quality == 'best':
-                # Best format - MP4 yoki m3u8 (HLS)
-                ydl_opts['format'] = 'best[ext=mp4]/best/bv*+ba/b'
+                # Best format - faqat height bo'yicha
+                ydl_opts['format'] = 'best'
             else:
                 # Tanlangan sifat (240p, 360p, 480p, 720p, 1080p)
                 height = quality.replace('p', '')  # '720p' -> '720'
-                # M3U8 (HLS) formatlarni ham qo'llab-quvvatlash
-                ydl_opts['format'] = (
-                    f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/'
-                    f'best[height<={height}][ext=mp4]/'
-                    f'bestvideo[height<={height}]+bestaudio/'
-                    f'best[height<={height}]/'
-                    f'best'
-                )
+                # Oddiy format selector - faqat height
+                ydl_opts['format'] = f'best[height<={height}]'
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -470,12 +458,6 @@ async def download_audio(query, url):
             'retries': 5,
             'fragment_retries': 5,
             'progress_hooks': [progress_hook],  # Progress callback
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['tv_embedded'],
-                    'player_skip': ['webpage'],
-                }
-            },
             'age_limit': None,
         }
         
