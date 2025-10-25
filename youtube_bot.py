@@ -118,17 +118,106 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qaytadan link yuboring.")
         return
     
-    format_type = query.data  # 'video' yoki 'audio'
+    callback_data = query.data
     
-    if format_type == 'video':
+    # Agar orqaga tugmasi bosilgan bo'lsa
+    if callback_data == 'back_to_format':
+        keyboard = [
+            [InlineKeyboardButton("📹 Video (MP4)", callback_data='video')],
+            [InlineKeyboardButton("🎵 Audio (MP3)", callback_data='audio')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "Qanday formatda yuklab olmoqchisiz?",
+            reply_markup=reply_markup
+        )
+        return
+    
+    # Agar video tugmasi bosilgan bo'lsa - sifatlarni ko'rsat
+    if callback_data == 'video':
+        await show_quality_options(query, url, context)
+    # Agar sifat tanlangan bo'lsa (video_720p kabi)
+    elif callback_data.startswith('video_'):
+        quality = callback_data.replace('video_', '')  # '720p' ni oladi
         await query.edit_message_text("⏳ Video yuklanmoqda... Iltimos kuting...")
-        await download_video(query, url)
-    elif format_type == 'audio':
+        await download_video(query, url, quality)
+    elif callback_data == 'audio':
         await query.edit_message_text("⏳ Audio yuklanmoqda... Iltimos kuting...")
         await download_audio(query, url)
 
 
-async def download_video(query, url):
+async def show_quality_options(query, url, context):
+    """Video sifatlarini ko'rsatadi va foydalanuvchi tanlaydi"""
+    try:
+        await query.edit_message_text("🔍 Mavjud sifatlar tekshirilmoqda...")
+        
+        # yt-dlp orqali mavjud formatlarni olish
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'socket_timeout': 30,
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            formats = info.get('formats', [])
+        
+        # Video+Audio formatlarini filterlash
+        quality_map = {}
+        for f in formats:
+            height = f.get('height')
+            filesize = f.get('filesize') or f.get('filesize_approx', 0)
+            
+            # Faqat video+audio bo'lgan formatlar
+            if height and filesize > 0:
+                quality_key = f"{height}p"
+                
+                # Eng kichik hajmli formatni saqlash
+                if quality_key not in quality_map or filesize < quality_map[quality_key]['size']:
+                    quality_map[quality_key] = {
+                        'size': filesize,
+                        'height': height
+                    }
+        
+        # Tugmalarni yaratish
+        keyboard = []
+        qualities = ['240p', '360p', '480p', '720p', '1080p']
+        
+        for quality in qualities:
+            if quality in quality_map:
+                size_mb = quality_map[quality]['size'] / (1024 * 1024)
+                
+                # Faqat 50MB dan kichik bo'lganlarni ko'rsatish
+                if size_mb <= 50:
+                    button_text = f"📹 {quality} • {size_mb:.1f} MB"
+                    keyboard.append([InlineKeyboardButton(button_text, callback_data=f"video_{quality}")])
+        
+        if not keyboard:
+            await query.edit_message_text(
+                "❌ Afsuski, 50 MB dan kichik sifatli video topilmadi.\n"
+                "Telegram orqali 50 MB dan katta fayllarni yuborish mumkin emas."
+            )
+            return
+        
+        # Orqaga tugmasini qo'shish
+        keyboard.append([InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_format")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "📊 Video sifatini tanlang:\n\n"
+            "⚠️ Telegram limiti: maksimum 50 MB",
+            reply_markup=reply_markup
+        )
+        
+    except Exception as e:
+        logger.error(f"Sifat olishda xatolik: {e}")
+        await query.edit_message_text(
+            "❌ Sifatlarni olishda xatolik yuz berdi.\n"
+            f"Xatolik: {str(e)}"
+        )
+
+
+async def download_video(query, url, quality='best'):
     """Video formatda yuklab oladi"""
     try:
         # Unique fayl nomi yaratish
@@ -196,8 +285,14 @@ async def download_video(query, url):
             # Cookie qo'shish (Pinterest uchun kerak)
             ydl_opts['cookiefile'] = None  # Cookie file yo'q bo'lsa ham ishlaydi
         else:
-            # YouTube uchun aniq format
-            ydl_opts['format'] = 'best[ext=mp4]/best'
+            # YouTube uchun - sifatga qarab format tanlash
+            if quality == 'best':
+                ydl_opts['format'] = 'best[ext=mp4]/best'
+            else:
+                # Tanlangan sifat (240p, 360p, 480p, 720p, 1080p)
+                height = quality.replace('p', '')  # '720p' -> '720'
+                # Video+audio birgalikda yuklab olish
+                ydl_opts['format'] = f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/best[height<={height}][ext=mp4]/best'
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
