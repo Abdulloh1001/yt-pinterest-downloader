@@ -129,7 +129,6 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if os.path.exists(cookies_file):
                 ydl_opts_check['cookiefile'] = cookies_file
                 # Instagram uchun cookies parameter ham kerak
-                ydl_opts_check['cookies'] = cookies_file
                 logger.info("Cookies fayli Instagram uchun ishlatilmoqda")
             
             with yt_dlp.YoutubeDL(ydl_opts_check) as ydl:
@@ -178,13 +177,19 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if 'entries' in info:
                         # Carousel - har bir rasmni yuklaymiz
                         count = 0
-                        for entry in info['entries'][:10]:  # Maksimum 10 ta rasm
+                        logger.info(f"Carousel topildi: {len(info['entries'])} ta entry")
+                        
+                        for idx, entry in enumerate(info['entries'][:10]):  # Maksimum 10 ta rasm
                             # Entry har xil formatda bo'lishi mumkin
                             photo_url = None
+                            
+                            # Debug: entry strukturasini log qilamiz
+                            logger.info(f"Entry {idx} keys: {list(entry.keys())}")
                             
                             # 1. Direct URL
                             if entry.get('url'):
                                 photo_url = entry.get('url')
+                                logger.info(f"Entry {idx}: Direct URL topildi")
                             # 2. Thumbnails array ichida eng yuqori sifatli rasm
                             elif entry.get('thumbnails'):
                                 thumbnails = entry.get('thumbnails', [])
@@ -192,18 +197,23 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     # Eng katta o'lchamdagi rasmni topamiz
                                     best_thumb = max(thumbnails, key=lambda t: t.get('width', 0) * t.get('height', 0))
                                     photo_url = best_thumb.get('url')
+                                    logger.info(f"Entry {idx}: Thumbnail topildi (best quality)")
                             # 3. Bitta thumbnail
                             elif entry.get('thumbnail'):
                                 photo_url = entry.get('thumbnail')
+                                logger.info(f"Entry {idx}: Single thumbnail topildi")
                             
                             if photo_url:
                                 try:
                                     await update.message.reply_photo(photo=photo_url)
                                     count += 1
+                                    logger.info(f"Entry {idx}: Rasm muvaffaqiyatli yuborildi")
                                 except Exception as e:
-                                    logger.error(f"Rasm yuborishda xatolik: {e}")
+                                    logger.error(f"Entry {idx}: Rasm yuborishda xatolik: {e}")
                                     # URL'ni debug uchun log qilamiz
                                     logger.debug(f"Failed photo URL: {photo_url}")
+                            else:
+                                logger.warning(f"Entry {idx}: Hech qanday URL topilmadi")
                         
                         if count > 0:
                             await update.message.reply_text(f"✅ {count} ta rasm yuklandi!")
@@ -313,7 +323,6 @@ async def show_quality_options(query, url, context):
         cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
         if os.path.exists(cookies_file):
             ydl_opts['cookiefile'] = cookies_file
-            ydl_opts['cookies'] = cookies_file  # Instagram uchun ham kerak!
             logger.info("YouTube cookies fayli topildi va ishlatilmoqda")
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -430,7 +439,6 @@ async def download_video(query, url, quality='best', context=None):
                 cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
                 if os.path.exists(cookies_file):
                     ydl_opts_info['cookiefile'] = cookies_file
-                    ydl_opts_info['cookies'] = cookies_file
                 
                 with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
                     info = ydl.extract_info(url, download=False)
@@ -492,7 +500,6 @@ async def download_video(query, url, quality='best', context=None):
         cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
         if os.path.exists(cookies_file):
             ydl_opts_check['cookiefile'] = cookies_file
-            ydl_opts_check['cookies'] = cookies_file
         
         with yt_dlp.YoutubeDL(ydl_opts_check) as ydl:
             info_check = ydl.extract_info(url, download=False)
@@ -569,7 +576,6 @@ async def download_video(query, url, quality='best', context=None):
         cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
         if os.path.exists(cookies_file):
             ydl_opts['cookiefile'] = cookies_file
-            ydl_opts['cookies'] = cookies_file
         
         # Pinterest va YouTube uchun turli formatlar
         if is_pinterest:
@@ -693,7 +699,6 @@ async def download_audio(query, url, context=None):
                 cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
                 if os.path.exists(cookies_file):
                     ydl_opts_info['cookiefile'] = cookies_file
-                    ydl_opts_info['cookies'] = cookies_file
                 
                 with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
                     info = ydl.extract_info(url, download=False)
@@ -754,7 +759,6 @@ async def download_audio(query, url, context=None):
         cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
         if os.path.exists(cookies_file):
             ydl_opts_check['cookiefile'] = cookies_file
-            ydl_opts_check['cookies'] = cookies_file
         
         with yt_dlp.YoutubeDL(ydl_opts_check) as ydl:
             info_check = ydl.extract_info(url, download=False)
@@ -831,7 +835,6 @@ async def download_audio(query, url, context=None):
         cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
         if os.path.exists(cookies_file):
             ydl_opts['cookiefile'] = cookies_file
-            ydl_opts['cookies'] = cookies_file
         
         
         # FFmpeg mavjud bo'lsa MP3 ga o'giramiz
