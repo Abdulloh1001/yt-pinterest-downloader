@@ -33,7 +33,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Men video va audio yuklovchi botman.\n\n"
         "Quyidagi platformalardan video link yuboring:\n\n"
         "📺 <b>YouTube</b> (youtube.com, youtu.be)\n"
-        "📌 <b>Pinterest</b> (pinterest.com, pin.it)\n\n"
+        "📌 <b>Pinterest</b> (pinterest.com, pin.it)\n"
+        "📸 <b>Instagram</b> (instagram.com)\n"
+        "   • Reels 🎬\n"
+        "   • Posts 📷\n"
+        "   • Carousel 🖼️\n"
+        "   • Stories 📱\n"
+        "   • Highlights ✨\n\n"
         "Men sizga video yoki audio formatida yuklab beraman!\n\n"
         "🎬 Video (MP4 format)\n"
         "🎵 Audio (MP3 format)",
@@ -41,20 +47,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def handle_youtube_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Video linkini qabul qiladi va formatni tanlash tugmalarini ko'rsatadi"""
     url = update.message.text
     
-    # YouTube yoki Pinterest linkini tekshirish
+    # Platform'ni aniqlash
     is_youtube = 'youtube.com' in url or 'youtu.be' in url
     is_pinterest = 'pinterest.com' in url or 'pin.it' in url
+    is_instagram = 'instagram.com' in url or 'instagr.am' in url
     
-    if not (is_youtube or is_pinterest):
+    if not (is_youtube or is_pinterest or is_instagram):
         await update.message.reply_text(
-            "❌ Bu YouTube yoki Pinterest link emas!\n\n"
+            "❌ Noto'g'ri link!\n\n"
             "Quyidagi platformalardan link yuboring:\n"
             "📺 YouTube (youtube.com, youtu.be)\n"
-            "📌 Pinterest (pinterest.com, pin.it)"
+            "📌 Pinterest (pinterest.com, pin.it)\n"
+            "📸 Instagram (instagram.com)"
         )
         return
     
@@ -62,7 +70,14 @@ async def handle_youtube_link(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data['youtube_url'] = url
     
     # Platform nomini aniqlash
-    platform = "YouTube" if is_youtube else "Pinterest"
+    if is_youtube:
+        platform = "YouTube"
+    elif is_pinterest:
+        platform = "Pinterest"
+    elif is_instagram:
+        platform = "Instagram"
+    else:
+        platform = "Unknown"
     
     # Log kanaliga xabar yuborish
     if LOG_CHANNEL:
@@ -809,7 +824,7 @@ def main():
     
     # Handlerlarni qo'shish
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_youtube_link))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_url))
     application.add_handler(CallbackQueryHandler(button_callback))
     
     # Error handler
