@@ -183,10 +183,18 @@ async def download_video(query, url):
         
         # Pinterest va YouTube uchun turli formatlar
         if is_pinterest:
-            # Pinterest uchun formatni belgilamaslik - avtomatik tanlash
+            # Pinterest uchun yangilanган sozlamalar
             ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Referer': 'https://www.pinterest.com/',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
             }
+            # Cookie qo'shish (Pinterest uchun kerak)
+            ydl_opts['cookiefile'] = None  # Cookie file yo'q bo'lsa ham ishlaydi
         else:
             # YouTube uchun aniq format
             ydl_opts['format'] = 'best[ext=mp4]/best'
@@ -220,7 +228,17 @@ async def download_video(query, url):
         # Xatolik turini aniqlash
         error_message = "❌ Video yuklashda xatolik yuz berdi."
         
-        if "timed out" in str(e).lower() or "timeout" in str(e).lower():
+        if "403" in str(e) or "forbidden" in str(e).lower():
+            error_message = (
+                "🚫 Ruxsat berilmadi (403 Forbidden)\n\n"
+                "Pinterest ba'zan botlarni bloklashi mumkin.\n\n"
+                "Yechimlari:\n"
+                "• Biroz kutib qaytadan urinib ko'ring\n"
+                "• Boshqa Pinterest link sinab ko'ring\n"
+                "• YouTube linkini sinab ko'ring (ishlaydi)\n\n"
+                "Pinterest qattiq himoyalangan!"
+            )
+        elif "timed out" in str(e).lower() or "timeout" in str(e).lower():
             error_message = (
                 "⏱️ Video yuklanishida vaqt tugadi.\n\n"
                 "Bu quyidagi sabablarga bog'liq bo'lishi mumkin:\n"
@@ -306,7 +324,13 @@ async def download_audio(query, url):
         # Pinterest uchun qo'shimcha sozlamalar
         if is_pinterest:
             ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Referer': 'https://www.pinterest.com/',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
             }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -340,7 +364,17 @@ async def download_audio(query, url):
         # Xatolik turini aniqlash
         error_message = "❌ Audio yuklashda xatolik yuz berdi."
         
-        if "timed out" in str(e).lower() or "timeout" in str(e).lower():
+        if "403" in str(e) or "forbidden" in str(e).lower():
+            error_message = (
+                "🚫 Ruxsat berilmadi (403 Forbidden)\n\n"
+                "Pinterest ba'zan botlarni bloklashi mumkin.\n\n"
+                "Yechimlari:\n"
+                "• Biroz kutib qaytadan urinib ko'ring\n"
+                "• Boshqa Pinterest link sinab ko'ring\n"
+                "• YouTube linkini sinab ko'ring (ishlaydi)\n\n"
+                "Pinterest qattiq himoyalangan!"
+            )
+        elif "timed out" in str(e).lower() or "timeout" in str(e).lower():
             error_message = (
                 "⏱️ Audio yuklanishida vaqt tugadi.\n\n"
                 "Bu quyidagi sabablarga bog'liq bo'lishi mumkin:\n"
