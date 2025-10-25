@@ -140,7 +140,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif callback_data.startswith('video_'):
         quality = callback_data.replace('video_', '')  # '720p' ni oladi
         await query.edit_message_text("⏳ Video yuklanmoqda... Iltimos kuting...")
-        await download_video(query, url, quality)
+        await download_video(query, url, quality, context)
     elif callback_data == 'audio':
         await query.edit_message_text("⏳ Audio yuklanmoqda... Iltimos kuting...")
         await download_audio(query, url)
@@ -257,9 +257,73 @@ async def show_quality_options(query, url, context):
             )
 
 
-async def download_video(query, url, quality='best'):
+async def download_video(query, url, quality='best', context=None):
     """Video formatda yuklab oladi"""
     try:
+        await query.edit_message_text("🔍 Video ma'lumotlari olinmoqda...")
+        
+        # Avval DIRECT URL orqali yuborishga harakat qilamiz (tezroq!)
+        # Faqat context mavjud bo'lsa
+        if context:
+            try:
+                # Video URL'ni olish (yuklab olmasdan)
+                ydl_opts_info = {
+                    'quiet': True,
+                    'no_warnings': True,
+                    'format': f'best[height<={quality[:-1]}]' if quality != 'best' else 'best',
+                }
+                
+                # Cookies fayl mavjud bo'lsa ishlatamiz
+                cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+                if os.path.exists(cookies_file):
+                    ydl_opts_info['cookiefile'] = cookies_file
+                
+                with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    video_url = info.get('url')
+                    title = info.get('title', 'Video')
+                    filesize = info.get('filesize') or info.get('filesize_approx', 0)
+                    
+                    # Agar URL mavjud va filesize ≤50MB bo'lsa, direct yuborish
+                    if video_url and filesize and filesize <= 50 * 1024 * 1024:
+                        logger.info(f"Direct URL orqali yuborilmoqda: {title} ({filesize/(1024*1024):.1f}MB)")
+                        await query.edit_message_text("📤 Video to'g'ridan-to'g'ri yuborilmoqda...")
+                        
+                        user_id = query.message.chat_id
+                        message_id = query.message.message_id
+                        
+                        # Direct URL orqali yuborish
+                        await context.bot.send_video(
+                            chat_id=user_id,
+                            video=video_url,
+                            caption=f"✅ {title}\n\n📊 Sifat: {quality}",
+                            supports_streaming=True,
+                            read_timeout=120,
+                            write_timeout=120,
+                        )
+                        
+                        # Eski xabarni o'chirish
+                        await query.message.delete()
+                        
+                        # LOG_CHANNEL'ga yuborish
+                        if LOG_CHANNEL:
+                            username = query.from_user.username
+                            user_link = f"@{username}" if username else f"User {query.from_user.id}"
+                            await context.bot.send_message(
+                                chat_id=LOG_CHANNEL,
+                                text=f"📹 Video yuklandi (DIRECT)\n👤 {user_link}\n🔗 {url}\n📊 {quality}"
+                            )
+                        
+                        logger.info(f"Video DIRECT URL orqali yuborildi: {title}")
+                        return  # Direct ishlasa, keyingi kodga o'tmaymiz
+                    
+            except Exception as e:
+                logger.warning(f"Direct URL yuborish ishlamadi, streaming'ga o'tilmoqda: {e}")
+        
+        # Agar DIRECT ishlamasa, STREAMING orqali yuklaymiz (eski usul)
+        await query.edit_message_text("⏳ Video serverga yuklanmoqda...")
+
+        
         # Unique fayl nomi yaratish
         timestamp = int(time.time())
         temp_filename = f"video_{timestamp}"
