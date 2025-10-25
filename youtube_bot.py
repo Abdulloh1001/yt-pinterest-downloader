@@ -201,6 +201,22 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Instagram uchun maxsus tekshirish - instaloader bilan yuklab berish
     if is_instagram:
+        # Highlights short URL (/s/) - yt-dlp qo'llab-quvvatlamaydi
+        if '/s/' in url and 'instagram.com/s/' in url:
+            await update.message.reply_text(
+                "❌ <b>Highlights short URL qo'llab-quvvatlanmaydi</b>\n\n"
+                "✅ <b>Yechim:</b> Instagram ilovasida to'liq Story URL'ni oling:\n\n"
+                "📱 <b>Qadamlar:</b>\n"
+                "1️⃣ Instagram'da Highlights'ni oching\n"
+                "2️⃣ Birinchi story'ga bosing (to'liq ekranga o'ting)\n"
+                "3️⃣ Yuqori o'ng burchakdagi <b>⋮</b> (3 nuqta) tugmasini bosing\n"
+                "4️⃣ <b>\"Linkni nusxalash\"</b> ni tanlang\n"
+                "5️⃣ Nusxalangan linkni bu yerga yuboring\n\n"
+                "📝 To'g'ri format: <code>instagram.com/stories/username/1234567890/</code>",
+                parse_mode='HTML'
+            )
+            return
+        
         try:
             await update.message.reply_text("🔍 Instagram media tekshirilmoqda...")
             
@@ -408,6 +424,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_quality_options(query, url, context):
     """Video sifatlarini ko'rsatadi va foydalanuvchi tanlaydi"""
     try:
+        # Instagram Story/Highlights uchun format tanlash kerak emas - to'g'ridan-to'g'ri download_video chaqirish
+        if '/stories/' in url or '/s/' in url:
+            logger.info("Instagram Story/Highlights - to'g'ridan-to'g'ri yuklanmoqda")
+            await query.edit_message_text("📱 Story/Highlights yuklanmoqda...")
+            await download_video(query, url, 'best', context)
+            return
+        
         await query.edit_message_text("🔍 Mavjud sifatlar tekshirilmoqda...")
         
         # yt-dlp orqali mavjud formatlarni olish (format tanlash SHART EMAS)
