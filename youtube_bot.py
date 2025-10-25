@@ -54,7 +54,13 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Platform'ni aniqlash
     is_youtube = 'youtube.com' in url or 'youtu.be' in url
     is_pinterest = 'pinterest.com' in url or 'pin.it' in url
-    is_instagram = 'instagram.com' in url or 'instagr.am' in url
+    # Instagram - turli URL formatlarini qo'llab-quvvatlash
+    is_instagram = (
+        'instagram.com' in url or 
+        'instagr.am' in url or 
+        'instagram.com/s/' in url or  # Highlights short URL
+        'instagram.com/stories/' in url  # Stories/Highlights
+    )
     
     if not (is_youtube or is_pinterest or is_instagram):
         await update.message.reply_text(
@@ -106,6 +112,53 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         except Exception as e:
             logger.error(f"Log kanalga yuborishda xatolik: {e}")
+    
+    # Instagram uchun maxsus tekshirish - rasm yoki video?
+    if is_instagram:
+        try:
+            await update.message.reply_text("🔍 Instagram media tekshirilmoqda...")
+            
+            # Media type tekshirish
+            ydl_opts_check = {
+                'quiet': True,
+                'no_warnings': True,
+            }
+            
+            with yt_dlp.YoutubeDL(ydl_opts_check) as ydl:
+                info = ydl.extract_info(url, download=False)
+                
+                # Video formatlar mavjudligini tekshirish
+                formats = info.get('formats', [])
+                has_video = any(f.get('vcodec') != 'none' for f in formats)
+                
+                # Agar video yo'q (faqat rasm) bo'lsa
+                if not has_video or info.get('ext') in ['jpg', 'jpeg', 'png', 'webp']:
+                    # To'g'ridan-to'g'ri rasm sifatida yuklaymiz
+                    await update.message.reply_text("📸 Instagram rasmini yuklayman...")
+                    
+                    # Rasm URL'ini olamiz
+                    if 'entries' in info:
+                        # Carousel - har bir rasmni yuklaymiz
+                        media_group = []
+                        for entry in info['entries'][:10]:  # Maksimum 10 ta rasm
+                            photo_url = entry.get('url') or entry.get('thumbnail')
+                            if photo_url:
+                                try:
+                                    await update.message.reply_photo(photo=photo_url)
+                                except Exception as e:
+                                    logger.error(f"Rasm yuborishda xatolik: {e}")
+                        await update.message.reply_text(f"✅ {len(info['entries'])} ta rasm yuklandi!")
+                    else:
+                        photo_url = info.get('thumbnail') or info.get('url')
+                        if photo_url:
+                            await update.message.reply_photo(photo=photo_url, caption="✅ Instagram rasmi")
+                        else:
+                            await update.message.reply_text("❌ Rasm URL topilmadi.")
+                    return
+                    
+        except Exception as e:
+            logger.error(f"Instagram media type tekshirishda xatolik: {e}")
+            # Xato bo'lsa, odatdagi formatga o'tamiz
     
     # Inline klaviaturani yaratish
     keyboard = [
