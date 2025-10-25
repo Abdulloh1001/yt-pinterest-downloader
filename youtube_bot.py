@@ -143,7 +143,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await download_video(query, url, quality, context)
     elif callback_data == 'audio':
         await query.edit_message_text("⏳ Audio yuklanmoqda... Iltimos kuting...")
-        await download_audio(query, url)
+        await download_audio(query, url, context)
 
 
 async def show_quality_options(query, url, context):
@@ -478,9 +478,71 @@ async def download_video(query, url, quality='best', context=None):
         await query.message.edit_text(error_message)
 
 
-async def download_audio(query, url):
+async def download_audio(query, url, context=None):
     """Audio formatda (MP3) yuklab oladi"""
     try:
+        await query.edit_message_text("🔍 Audio ma'lumotlari olinmoqda...")
+        
+        # Avval DIRECT URL orqali yuborishga harakat qilamiz (tezroq!)
+        # Faqat context mavjud bo'lsa
+        if context:
+            try:
+                # Audio URL'ni olish (yuklab olmasdan)
+                ydl_opts_info = {
+                    'quiet': True,
+                    'no_warnings': True,
+                    'format': 'bestaudio/best',
+                }
+                
+                # Cookies fayl mavjud bo'lsa ishlatamiz
+                cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+                if os.path.exists(cookies_file):
+                    ydl_opts_info['cookiefile'] = cookies_file
+                
+                with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    audio_url = info.get('url')
+                    title = info.get('title', 'Audio')
+                    filesize = info.get('filesize') or info.get('filesize_approx', 0)
+                    
+                    # Agar URL mavjud va filesize ≤50MB bo'lsa, direct yuborish
+                    if audio_url and filesize and filesize <= 50 * 1024 * 1024:
+                        logger.info(f"Direct URL orqali yuborilmoqda (audio): {title} ({filesize/(1024*1024):.1f}MB)")
+                        await query.edit_message_text("📤 Audio to'g'ridan-to'g'ri yuborilmoqda...")
+                        
+                        user_id = query.message.chat_id
+                        
+                        # Direct URL orqali yuborish (audio)
+                        await context.bot.send_audio(
+                            chat_id=user_id,
+                            audio=audio_url,
+                            caption=f"✅ {title}",
+                            title=title,
+                            read_timeout=120,
+                            write_timeout=120,
+                        )
+                        
+                        # Eski xabarni o'chirish
+                        await query.message.delete()
+                        
+                        # LOG_CHANNEL'ga yuborish
+                        if LOG_CHANNEL:
+                            username = query.from_user.username
+                            user_link = f"@{username}" if username else f"User {query.from_user.id}"
+                            await context.bot.send_message(
+                                chat_id=LOG_CHANNEL,
+                                text=f"🎵 Audio yuklandi (DIRECT)\n👤 {user_link}\n🔗 {url}"
+                            )
+                        
+                        logger.info(f"Audio DIRECT URL orqali yuborildi: {title}")
+                        return  # Direct ishlasa, keyingi kodga o'tmaymiz
+                    
+            except Exception as e:
+                logger.warning(f"Direct URL yuborish ishlamadi (audio), streaming'ga o'tilmoqda: {e}")
+        
+        # Agar DIRECT ishlamasa, STREAMING orqali yuklaymiz (eski usul)
+        await query.edit_message_text("⏳ Audio serverga yuklanmoqda...")
+        
         # Unique fayl nomi yaratish
         timestamp = int(time.time())
         temp_filename = f"audio_{timestamp}"
