@@ -374,7 +374,18 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
         except Exception as e:
             logger.error(f"Instagram media type tekshirishda xatolik: {e}")
-            # Xato bo'lsa, odatdagi formatga o'tamiz
+            # Xato bo'lsa ham, agar story bo'lsa format selection ko'rsatmaymiz
+            if is_instagram and ('/stories/' in url):
+                await update.message.reply_text(
+                    "❌ Instagram Story yuklashda xatolik yuz berdi.\n\n"
+                    "Sabablari:\n"
+                    "• URL noto'g'ri yoki muddati o'tgan\n"
+                    "• Story o'chirilgan yoki private\n"
+                    "• Cookies yangilanishi kerak\n\n"
+                    "Iltimos, boshqa story URL'ni sinab ko'ring."
+                )
+                return
+            # Boshqa xatolar uchun format selection'ga o'tamiz
     
     # Inline klaviaturani yaratish
     keyboard = [
@@ -722,8 +733,12 @@ async def download_video(query, url, quality='best', context=None):
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1'
             }
-            # Cookie qo'shish (Pinterest uchun kerak)
-            ydl_opts['cookiefile'] = None  # Cookie file yo'q bo'lsa ham ishlaydi
+            # Pinterest uchun cookies optional (public content)
+        elif is_instagram:
+            # Instagram uchun cookies MAJBURIY
+            if os.path.exists(cookies_file):
+                ydl_opts['cookiefile'] = cookies_file
+                logger.info("Instagram uchun cookies ishlatilmoqda")
         else:
             # YouTube uchun - sifatga qarab format tanlash
             if quality == 'best':
