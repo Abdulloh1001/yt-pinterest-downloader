@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["python311", "ffmpeg-full"]
+nixPkgs = ["python311", "ffmpeg-full", "python311Packages.pip"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
+cmds = ["python3.11 -m pip install -r requirements.txt"]
 
 [start]
-cmd = "python youtube_bot.py"
+cmd = "python3.11 youtube_bot.py"
