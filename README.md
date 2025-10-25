@@ -1,6 +1,17 @@
-# YouTube Video & Audio Yuklovchi Telegram Bot
+# YouTube & Pinterest Video Yuklovchi Telegram Bot 🎥
 
-Bu bot YouTube videolarini video (MP4) yoki audio (MP3) formatida yuklab beradi.
+YouTube va Pinterest videolarini video (MP4) yoki audio (MP3) formatida yuklab beradi. Video sifatini tanlash (240p-1080p) imkoniyati bilan!
+
+## ⚠️ YouTube Bot Detection Muammosi
+
+**Railway/Cloud serverlarida YouTube ishlamasligi mumkin!** YouTube datacenter IP manzillarini bloklaydi.
+
+**✅ Yechimlar:**
+1. **Cookies qo'shish** - [COOKIES_GUIDE.md](COOKIES_GUIDE.md) ni o'qing
+2. **O'z kompyuteringizda ishlatish** (eng oson)
+3. VPS server (DigitalOcean, Linode)
+
+**Pinterest Railway'da ham ishlaydi!** ✅
 
 ## 🚀 O'rnatish
 
