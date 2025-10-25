@@ -1,4 +1,4 @@
 python-telegram-bot==20.7
-yt-dlp==2024.10.22
+yt-dlp>=2024.10.22
 python-dotenv==1.0.0
-# Force rebuild: 2025-10-25T15:12:00Z
+# Updated: 2025-10-25T15:20:00Z
