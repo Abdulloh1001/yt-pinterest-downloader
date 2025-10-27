@@ -588,13 +588,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sent = await send_direct_video(query, url, context, quality='best')
             if not sent:
                 await query.edit_message_text(
-                    "⚠️ Direct ishlamadi. \nEndi server orqali yuborishga harakat qilamiz (50 MB limit)."
+                    "⚠️ Direct ishlamadi. \nEndi server orqali yuborishga harakat qilamiz."
                 )
                 await show_quality_options(query, url, context)
         except Exception as e:
             logger.warning(f"Direct yuborishda xatolik: {e}")
             await query.edit_message_text(
-                "⚠️ Direct ishlamadi. \nEndi server orqali yuborishga harakat qilamiz (50 MB limit)."
+                "⚠️ Direct ishlamadi. \nEndi server orqali yuborishga harakat qilamiz."
             )
             await show_quality_options(query, url, context)
     # Agar sifat tanlangan bo'lsa (video_720p kabi)
@@ -723,8 +723,10 @@ async def show_quality_options(query, url, context):
             description_lines.append("🚀 Tezkor (Direct): Telegram serverlari • Limit yo'q • Juda tez")
         else:
             description_lines.append("🚀 Tezkor (Direct): N/A (faqat Instagram/Pinterest)")
-        description_lines.append("☁️ Serverdan: Bizning server • 50 MB limit • Sekinroq")
-        description_lines.append("\n⚠️ N/A (hajm noma'lum) formatlar katta bo'lishi mumkin va 50 MBdan oshsa yuborilmaydi")
+        description_lines.append("☁️ Serverdan:")
+        description_lines.append("  • ≤500 MB: Video ko'rinishida (inline play)")
+        description_lines.append("  • 500 MB - 2 GB: File ko'rinishida")
+        description_lines.append("\n⚠️ N/A (hajm noma'lum) formatlar katta bo'lishi mumkin")
 
         await query.edit_message_text(
             "\n".join(description_lines),
@@ -819,17 +821,17 @@ async def download_video(query, url, quality='best', context=None):
                     return
             filesize_check = info_check.get('filesize') or info_check.get('filesize_approx', 0)
             
-            # Agar 50MB dan katta bo'lsa, xabar beramiz
-            if filesize_check > 50 * 1024 * 1024:
+            # Pre-check: 2GB (Telegram file limit)
+            if filesize_check > 2 * 1024 * 1024 * 1024:
                 size_mb = filesize_check / (1024 * 1024)
                 await query.edit_message_text(
                     f"❌ Video juda katta!\n\n"
                     f"📊 Video hajmi: {size_mb:.1f} MB\n"
-                    f"📊 Telegram limiti: 50 MB\n\n"
+                    f"📊 Telegram file limiti: 2048 MB (2GB)\n\n"
                     f"💡 Pastroq sifatni tanlang:\n"
                     f"• 480p yoki 360p ni sinab ko'ring"
                 )
-                logger.warning(f"Video juda katta: {size_mb:.1f}MB > 50MB")
+                logger.warning(f"Video juda katta: {size_mb:.1f}MB > 2GB")
                 return
         
         await query.edit_message_text("⏳ Video serverga yuklanmoqda...")
@@ -952,14 +954,72 @@ async def download_video(query, url, quality='best', context=None):
                 raise FileNotFoundError(f"Video fayl topilmadi: {video_file}")
         
         # Faylni yuborish
-        # Yuborishdan oldin 50MB cheklovni yakuniy faylga nisbatan ham tekshiramiz
+        # Yuborishdan oldin 500MB cheklovni yakuniy faylga nisbatan ham tekshiramiz
         final_size = os.path.getsize(video_file)
-        if final_size > 50 * 1024 * 1024:
-            size_mb = final_size / (1024 * 1024)
-            # YouTube uchun bo'lib yuborishga harakat qilamiz (ffmpeg kerak)
+        size_mb = final_size / (1024 * 1024)
+        
+        if final_size > 500 * 1024 * 1024:
+            # 500MB dan katta: file/document sifatida yuboramiz (2GB gacha)
+            if final_size > 2 * 1024 * 1024 * 1024:
+                await query.edit_message_text(
+                    f"❌ Video juda katta!\n\n"
+                    f"📊 Video hajmi: {size_mb:.1f} MB\n"
+                    f"📊 Telegram file limiti: 2048 MB (2GB)\n\n"
+                    f"💡 Pastroq sifatni tanlang"
+                )
+                try:
+                    os.remove(video_file)
+                except Exception:
+                    pass
+                return
+            
+            # 500MB-2GB: file sifatida yuborish
+            await query.edit_message_text(
+                f"📄 Video katta ekan ({size_mb:.1f}MB). File sifatida yuborilmoqda..."
+            )
+            try:
+                with open(video_file, 'rb') as f:
+                    await query.message.reply_document(
+                        document=f,
+                        caption=f"✅ {video_title}\n\n📦 File ({size_mb:.1f} MB)\n💡 Yuklab olib tomosha qiling",
+                        read_timeout=300,
+                        write_timeout=300,
+                    )
+                await query.message.delete()
+                
+                if LOG_CHANNEL:
+                    username = query.from_user.username
+                    user_link = f"@{username}" if username else f"User {query.from_user.id}"
+                    await context.bot.send_message(
+                        chat_id=LOG_CHANNEL,
+                        text=f"📄 File yuborildi\n👤 {user_link}\n📊 {size_mb:.1f}MB\n🔗 {url}"
+                    )
+                
+                logger.info(f"Video file sifatida yuborildi: {video_title} ({size_mb:.1f}MB)")
+                try:
+                    os.remove(video_file)
+                except Exception:
+                    pass
+                return
+            except Exception as e:
+                logger.error(f"File yuborishda xatolik: {e}")
+                await query.message.edit_text(
+                    f"❌ File yuborishda xatolik\n\n"
+                    f"📊 Hajm: {size_mb:.1f} MB\n"
+                    f"Xatolik: {str(e)}"
+                )
+                try:
+                    os.remove(video_file)
+                except Exception:
+                    pass
+                return
+        
+        # ≤500MB: video sifatida yuborish (inline play)
+        if final_size <= 500 * 1024 * 1024:
             is_youtube = 'youtube.com' in url or 'youtu.be' in url
             ffmpeg_available = shutil.which('ffmpeg') is not None and shutil.which('ffprobe') is not None
-            if is_youtube and ffmpeg_available:
+            # Eski ffmpeg segmentlash kodini saqlaymiz (backup), lekin hozir ishlatmaymiz
+            if False:  # Disabled: ffmpeg segmentation
                 await query.message.edit_text(
                     "📦 Video katta ekan (>50MB). Endi bo'lib yuborishga harakat qilaman..."
                 )
@@ -1062,11 +1122,16 @@ async def download_video(query, url, quality='best', context=None):
                 )
                 return
 
+        # ≤500MB: video sifatida yuborish (inline play)
+        await query.edit_message_text("📤 Video yuborilmoqda...")
+        
         with open(video_file, 'rb') as video:
             await query.message.reply_video(
                 video=video,
-                caption=f"📹 {video_title}",
-                supports_streaming=True
+                caption=f"✅ {video_title}\n\n📹 Video ({size_mb:.1f} MB)",
+                supports_streaming=True,
+                read_timeout=300,
+                write_timeout=300,
             )
         
         # Faylni o'chirish
@@ -1074,6 +1139,16 @@ async def download_video(query, url, quality='best', context=None):
         
         # "Yuklanmoqda" xabarini o'chirish
         await query.message.delete()
+        
+        if LOG_CHANNEL:
+            username = query.from_user.username
+            user_link = f"@{username}" if username else f"User {query.from_user.id}"
+            await context.bot.send_message(
+                chat_id=LOG_CHANNEL,
+                text=f"📹 Video yuborildi\n👤 {user_link}\n📊 {size_mb:.1f}MB\n🔗 {url}"
+            )
+        
+        logger.info(f"Video yuborildi: {video_title} ({size_mb:.1f}MB)")
         
     except Exception as e:
         logger.error(f"Video yuklashda xatolik: {e}")
@@ -1369,14 +1444,16 @@ async def download_audio(query, url, context=None):
             else:
                 raise FileNotFoundError(f"Audio fayl topilmadi: {audio_file}")
         
-        # Fayl hajmini tekshirish (50 MB limit)
+        # Fayl hajmini tekshirish (2GB limit for files)
         file_size = os.path.getsize(audio_file)
-        if file_size > 50 * 1024 * 1024:  # 50 MB
+        size_mb = file_size / (1024 * 1024)
+        
+        if file_size > 2 * 1024 * 1024 * 1024:  # 2GB
             os.remove(audio_file)
             await query.message.edit_text(
                 f"❌ Audio hajmi juda katta!\n\n"
-                f"Fayl hajmi: {file_size / (1024*1024):.1f} MB\n"
-                f"Telegram limiti: 50 MB\n\n"
+                f"Fayl hajmi: {size_mb:.1f} MB\n"
+                f"Telegram limiti: 2048 MB (2GB)\n\n"
                 f"Iltimos, qisqaroq yoki past sifatli audio tanlang."
             )
             return
