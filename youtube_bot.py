@@ -708,7 +708,7 @@ async def show_quality_options(query, url, context):
         if not keyboard:
             await query.edit_message_text(
                 "❌ Afsuski, mavjud video formatlari topilmadi.\n"
-                "Telegram orqali 50 MB dan katta fayllarni yuborish mumkin emas."
+                "Server orqali 300 MB dan katta video'larni yuborish mumkin emas (RAM limit)."
             )
             return
         
@@ -1074,12 +1074,12 @@ async def download_video(query, url, quality='best', context=None):
                             "❌ Bo'lib yuborish muvaffaqiyatsiz. Iltimos pastroq sifatni tanlang."
                         )
                         return
-                    # 50MB dan katta bo'lib qolgan qismlarni tashlab ketamiz
-                    sendable_parts = [p for p in parts if os.path.getsize(p) <= 50 * 1024 * 1024]
+                    # 300MB dan katta bo'lib qolgan qismlarni tashlab ketamiz
+                    sendable_parts = [p for p in parts if os.path.getsize(p) <= 300 * 1024 * 1024]
                     total = len(sendable_parts)
                     if total == 0:
                         await query.message.edit_text(
-                            "❌ Qismlar ham 50MB dan katta chiqdi. Pastroq sifatni tanlang."
+                            "❌ Qismlar ham 300MB dan katta chiqdi. Pastroq sifatni tanlang."
                         )
                         # Tozalash
                         for p in parts:
@@ -1106,7 +1106,7 @@ async def download_video(query, url, quality='best', context=None):
                 except Exception as e:
                     logger.error(f"Segmentlashda xatolik: {e}")
                     await query.message.edit_text(
-                        "❌ Video 50 MB dan katta ekan va bo'lib yuborishda xatolik yuz berdi.\n"
+                        "❌ Video 300 MB dan katta ekan va bo'lib yuborishda xatolik yuz berdi.\n"
                         f"📊 Hajm: {size_mb:.1f} MB\n\n"
                         "🔁 Iltimos pastroq sifatni tanlang."
                     )
@@ -1118,7 +1118,7 @@ async def download_video(query, url, quality='best', context=None):
                 except Exception:
                     pass
                 await query.message.edit_text(
-                    "❌ Video 50 MB dan katta ekan.\n"
+                    "❌ Video 300 MB dan katta ekan.\n"
                     f"📊 Hajm: {size_mb:.1f} MB\n\n"
                     "🔁 Iltimos pastroq sifatni tanlang yoki Instagram/Pinterest bo'lsa 🚀 Direct ni sinab ko'ring."
                 )
@@ -1316,17 +1316,17 @@ async def download_audio(query, url, context=None):
             info_check = ydl.extract_info(url, download=False)
             filesize_check = info_check.get('filesize') or info_check.get('filesize_approx', 0)
             
-            # Agar 50MB dan katta bo'lsa, xabar beramiz
-            if filesize_check > 50 * 1024 * 1024:
+            # Pre-check: 300MB limit (Railway RAM uchun)
+            if filesize_check > 300 * 1024 * 1024:
                 size_mb = filesize_check / (1024 * 1024)
                 await query.edit_message_text(
                     f"❌ Audio juda katta!\n\n"
                     f"📊 Audio hajmi: {size_mb:.1f} MB\n"
-                    f"📊 Telegram limiti: 50 MB\n\n"
+                    f"📊 Server limiti: 300 MB\n\n"
                     f"💡 Bu video juda uzun.\n"
                     f"Qisqaroq qism linkini yuboring."
                 )
-                logger.warning(f"Audio juda katta: {size_mb:.1f}MB > 50MB")
+                logger.warning(f"Audio juda katta: {size_mb:.1f}MB > 300MB")
                 return
         
         await query.edit_message_text("⏳ Audio serverga yuklanmoqda...")
