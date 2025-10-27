@@ -46,6 +46,7 @@ async def send_direct_video(query, url, context: ContextTypes.DEFAULT_TYPE, qual
             'quiet': True,
             'no_warnings': True,
             'format': 'best',  # Pinterest/Instagram uchun eng xavfsizi
+            'ignore_no_formats_error': True,  # Pinterest fotolari uchun
         }
         if is_pinterest:
             ydl_opts_info['http_headers'] = {
@@ -63,6 +64,25 @@ async def send_direct_video(query, url, context: ContextTypes.DEFAULT_TYPE, qual
 
         with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
             info = ydl.extract_info(url, download=False)
+            
+            # Agar video formatlar yo'q bo'lsa, rasm (photo) bo'lishi mumkin
+            if is_pinterest and (not info.get('formats') or len(info.get('formats', [])) == 0):
+                # Pinterest rasmi
+                thumbnail = info.get('thumbnail') or info.get('url')
+                if thumbnail:
+                    user_id = query.message.chat_id
+                    await context.bot.send_photo(
+                        chat_id=user_id,
+                        photo=thumbnail,
+                        caption=f"✅ {info.get('title', 'Pinterest rasmi')}\n\n📷 Rasm"
+                    )
+                    try:
+                        await query.message.delete()
+                    except Exception:
+                        pass
+                    logger.info("Pinterest rasmi yuborildi (direct)")
+                    return True
+                return False
             chosen_url = info.get('url')
             # Agar birlamchi url bo'lmasa, formatlar orasidan tanlashga harakat qilamiz
             if not chosen_url and 'formats' in info:
@@ -708,6 +728,7 @@ async def download_video(query, url, quality='best', context=None):
             'quiet': True,
             'no_warnings': True,
             'format': f'best[height<={quality[:-1]}]' if quality != 'best' else 'best',
+            'ignore_no_formats_error': True,  # Pinterest fotolari uchun
         }
         # Pinterest uchun doimiy 'best' va headerlar
         if is_pinterest:
@@ -728,6 +749,21 @@ async def download_video(query, url, quality='best', context=None):
         
         with yt_dlp.YoutubeDL(ydl_opts_check) as ydl:
             info_check = ydl.extract_info(url, download=False)
+            
+            # Pinterest: agar formatlar yo'q bo'lsa, rasm
+            if is_pinterest and (not info_check.get('formats') or len(info_check.get('formats', [])) == 0):
+                thumbnail = info_check.get('thumbnail') or info_check.get('url')
+                if thumbnail:
+                    await query.message.reply_photo(
+                        photo=thumbnail,
+                        caption=f"✅ {info_check.get('title', 'Pinterest rasmi')}\n\n📷 Rasm"
+                    )
+                    await query.message.delete()
+                    logger.info("Pinterest rasmi yuborildi (server fallback)")
+                    return
+                else:
+                    await query.edit_message_text("❌ Pinterest rasm yoki video topilmadi.")
+                    return
             filesize_check = info_check.get('filesize') or info_check.get('filesize_approx', 0)
             
             # Agar 50MB dan katta bo'lsa, xabar beramiz
