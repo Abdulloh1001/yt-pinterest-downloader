@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # Bot tokenini kiriting (bu yerga o'z bot tokeningizni qo'ying)
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 LOG_CHANNEL = os.getenv('LOG_CHANNEL')
+LOCAL_API_URL = os.getenv('LOCAL_API_URL')  # Local Bot API URL (ixtiyoriy)
 
 # Yuklab olingan fayllar uchun papka
 DOWNLOAD_FOLDER = 'downloads'
@@ -1535,7 +1536,14 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     """Botni ishga tushiradi"""
     # Application yaratish
-    application = Application.builder().token(BOT_TOKEN).build()
+    if LOCAL_API_URL:
+        # Local Bot API'dan foydalanish (10x tezroq!)
+        logger.info(f"🚀 Using Local Bot API: {LOCAL_API_URL}")
+        application = Application.builder().token(BOT_TOKEN).base_url(f"{LOCAL_API_URL}/bot").build()
+    else:
+        # Default Telegram API
+        logger.info("📡 Using default Telegram Bot API (api.telegram.org)")
+        application = Application.builder().token(BOT_TOKEN).build()
     
     # Handlerlarni qo'shish
     application.add_handler(CommandHandler("start", start))
