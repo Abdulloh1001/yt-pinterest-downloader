@@ -45,8 +45,18 @@ async def send_direct_video(query, url, context: ContextTypes.DEFAULT_TYPE, qual
         ydl_opts_info = {
             'quiet': True,
             'no_warnings': True,
-            'format': f"best[height<={quality[:-1]}]" if quality != 'best' else 'best',
+            'format': 'best',  # Pinterest/Instagram uchun eng xavfsizi
         }
+        if is_pinterest:
+            ydl_opts_info['http_headers'] = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Referer': 'https://www.pinterest.com/',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
         cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
         if os.path.exists(cookies_file):
             ydl_opts_info['cookiefile'] = cookies_file
@@ -699,6 +709,18 @@ async def download_video(query, url, quality='best', context=None):
             'no_warnings': True,
             'format': f'best[height<={quality[:-1]}]' if quality != 'best' else 'best',
         }
+        # Pinterest uchun doimiy 'best' va headerlar
+        if is_pinterest:
+            ydl_opts_check['format'] = 'best'
+            ydl_opts_check['http_headers'] = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Referer': 'https://www.pinterest.com/',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
         
         cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
         if os.path.exists(cookies_file):
