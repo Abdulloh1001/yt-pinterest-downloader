@@ -4,6 +4,7 @@ import time
 import math
 import shutil
 import subprocess
+import random
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 import yt_dlp
@@ -31,6 +32,37 @@ if not os.path.exists(DOWNLOAD_FOLDER):
     os.makedirs(DOWNLOAD_FOLDER)
 
 
+# ---- User-Agent rotation (Instagram rate-limit oldini olish) ----
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0',
+]
+
+def get_random_headers(for_instagram=False):
+    """Tasodifiy User-Agent va headerlar qaytaradi"""
+    user_agent = random.choice(USER_AGENTS)
+    headers = {
+        'User-Agent': user_agent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': random.choice(['en-US,en;q=0.9', 'en-GB,en;q=0.9', 'en-US,en;q=0.5']),
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+    }
+    if for_instagram:
+        headers['Referer'] = 'https://www.instagram.com/'
+        headers['X-Requested-With'] = 'XMLHttpRequest'
+    return headers
+
+
 # ---- Helper: Direct yuborish (Instagram/Pinterest) ----
 async def send_direct_video(query, url, context: ContextTypes.DEFAULT_TYPE, quality: str = 'best') -> bool:
     """Instagram/Pinterest uchun to'g'ridan-to'g'ri URL orqali yuboradi.
@@ -51,18 +83,13 @@ async def send_direct_video(query, url, context: ContextTypes.DEFAULT_TYPE, qual
         # Instagram: audio+video birlashtirilgan format (Reels uchun)
         if is_instagram:
             ydl_opts_info['format'] = 'bestvideo+bestaudio/best'
+            ydl_opts_info['http_headers'] = get_random_headers(for_instagram=True)
         else:
             # Pinterest
             ydl_opts_info['format'] = 'best'
-            ydl_opts_info['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Referer': 'https://www.pinterest.com/',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1'
-            }
+            pinterest_headers = get_random_headers()
+            pinterest_headers['Referer'] = 'https://www.pinterest.com/'
+            ydl_opts_info['http_headers'] = pinterest_headers
         
         cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
         if os.path.exists(cookies_file):
@@ -750,15 +777,12 @@ async def download_video(query, url, quality='best', context=None):
         # Pinterest uchun doimiy 'best' va headerlar
         if is_pinterest:
             ydl_opts_check['format'] = 'best'
-            ydl_opts_check['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Referer': 'https://www.pinterest.com/',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1'
-            }
+            pinterest_headers = get_random_headers()
+            pinterest_headers['Referer'] = 'https://www.pinterest.com/'
+            ydl_opts_check['http_headers'] = pinterest_headers
+        elif is_instagram:
+            # Instagram uchun ham rotation
+            ydl_opts_check['http_headers'] = get_random_headers(for_instagram=True)
         
         cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
         if os.path.exists(cookies_file):
@@ -873,8 +897,9 @@ async def download_video(query, url, quality='best', context=None):
             if os.path.exists(cookies_file):
                 ydl_opts['cookiefile'] = cookies_file
                 logger.info("Instagram uchun cookies ishlatilmoqda")
-            # Instagram Reels: audio track bilan birgalikda
+            # Instagram Reels: audio track bilan birgalikda + rotation headers
             ydl_opts['format'] = 'bestvideo+bestaudio/best'
+            ydl_opts['http_headers'] = get_random_headers(for_instagram=True)
         else:
             # YouTube uchun - sifatga qarab format tanlash
             if quality == 'best':
