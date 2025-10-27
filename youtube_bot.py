@@ -8,6 +8,7 @@ import random
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.error import NetworkError, TimedOut, RetryAfter
 import yt_dlp
 from dotenv import load_dotenv
 import instaloader
@@ -979,42 +980,102 @@ async def download_video(query, url, quality='best', context=None):
                 f"📄 Video katta ekan ({size_mb:.1f}MB). File sifatida yuborilmoqda...\n\n"
                 f"⏱️ Bu bir necha daqiqa olishi mumkin..."
             )
-            try:
-                with open(video_file, 'rb') as f:
-                    await query.message.reply_document(
-                        document=f,
-                        caption=f"✅ {video_title}\n\n📦 File ({size_mb:.1f} MB)\n💡 Yuklab olib tomosha qiling",
-                        read_timeout=600,  # 10 minut
-                        write_timeout=600,  # 10 minut
-                    )
-                await query.message.delete()
-                
-                if LOG_CHANNEL:
-                    username = query.from_user.username
-                    user_link = f"@{username}" if username else f"User {query.from_user.id}"
-                    await context.bot.send_message(
-                        chat_id=LOG_CHANNEL,
-                        text=f"📄 File yuborildi\n👤 {user_link}\n📊 {size_mb:.1f}MB\n🔗 {url}"
-                    )
-                
-                logger.info(f"Video file sifatida yuborildi: {video_title} ({size_mb:.1f}MB)")
+            
+            # Retry logic bilan upload qilish
+            max_retries = 3
+            retry_delay = 30  # 30 sekund
+            last_error = None
+            
+            for attempt in range(max_retries):
                 try:
-                    os.remove(video_file)
-                except Exception:
-                    pass
-                return
-            except Exception as e:
-                logger.error(f"File yuborishda xatolik: {e}")
-                await query.message.edit_text(
-                    f"❌ File yuborishda xatolik\n\n"
-                    f"📊 Hajm: {size_mb:.1f} MB\n"
-                    f"Xatolik: {str(e)}"
+                    logger.info(f"File upload attempt {attempt + 1}/{max_retries} for {video_title} ({size_mb:.1f}MB)")
+                    
+                    # Har safar file'ni qayta ochamiz (memory leak oldini olish)
+                    with open(video_file, 'rb') as f:
+                        await query.message.reply_document(
+                            document=f,
+                            caption=f"✅ {video_title}\n\n📦 File ({size_mb:.1f} MB)\n💡 Yuklab olib tomosha qiling",
+                            read_timeout=1200,  # 20 minut
+                            write_timeout=1200,  # 20 minut
+                            connect_timeout=60,  # 1 minut
+                            pool_timeout=30,  # Connection pool timeout
+                        )
+                    
+                    logger.info(f"✅ File upload successful on attempt {attempt + 1}")
+                    break  # Upload muvaffaqiyatli bo'lsa loop dan chiqamiz
+                    
+                except (TimedOut, NetworkError) as network_error:
+                    last_error = network_error
+                    logger.warning(f"Network error on file upload attempt {attempt + 1}: {network_error}")
+                    
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)  # 30s, 60s, 120s
+                        logger.info(f"Network unstable, retrying file after {wait_time} seconds...")
+                        
+                        await query.edit_message_text(
+                            f"🌐 Tarmoq muammosi, qayta urinilmoqda...\n\n"
+                            f"📊 Hajm: {size_mb:.1f} MB\n"
+                            f"🔄 Urinish: {attempt + 2}/{max_retries}\n"
+                            f"⏳ Kutish: {wait_time} sekund\n\n"
+                            f"💡 Railway network instability"
+                        )
+                        
+                        await asyncio.sleep(wait_time)
+                    else:
+                        logger.error(f"❌ All {max_retries} file upload attempts failed due to network issues")
+                        raise network_error
+                        
+                except RetryAfter as retry_error:
+                    wait_time = retry_error.retry_after + 5
+                    logger.warning(f"Telegram rate limit on file upload, waiting {wait_time}s")
+                    
+                    await query.edit_message_text(
+                        f"⏱️ Telegram limiti\n\n"
+                        f"Kutish vaqti: {wait_time} sekund\n"
+                        f"Keyin avtomatik davom etadi..."
+                    )
+                    
+                    await asyncio.sleep(wait_time)
+                    continue
+                    
+                except Exception as upload_error:
+                    last_error = upload_error
+                    logger.error(f"File upload attempt {attempt + 1} failed: {type(upload_error).__name__}: {upload_error}")
+                    
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)
+                        logger.info(f"Retrying file upload after {wait_time} seconds...")
+                        
+                        await query.edit_message_text(
+                            f"⚠️ Upload muammosi, qayta urinilmoqda...\n\n"
+                            f"📊 Hajm: {size_mb:.1f} MB\n"
+                            f"🔄 Urinish: {attempt + 2}/{max_retries}\n"
+                            f"⏳ Kutish: {wait_time} sekund\n\n"
+                            f"Xatolik: {type(upload_error).__name__}"
+                        )
+                        
+                        await asyncio.sleep(wait_time)
+                    else:
+                        logger.error(f"❌ All {max_retries} file upload attempts exhausted")
+                        raise upload_error
+            
+            # Upload muvaffaqiyatli bo'ldi
+            await query.message.delete()
+            
+            if LOG_CHANNEL:
+                username = query.from_user.username
+                user_link = f"@{username}" if username else f"User {query.from_user.id}"
+                await context.bot.send_message(
+                    chat_id=LOG_CHANNEL,
+                    text=f"📄 File yuborildi\n👤 {user_link}\n📊 {size_mb:.1f}MB\n🔗 {url}"
                 )
-                try:
-                    os.remove(video_file)
-                except Exception:
-                    pass
-                return
+            
+            logger.info(f"Video file sifatida yuborildi: {video_title} ({size_mb:.1f}MB)")
+            try:
+                os.remove(video_file)
+            except Exception:
+                pass
+            return
         
         # ≤500MB: video sifatida yuborish (inline play)
         if final_size <= 500 * 1024 * 1024:
@@ -1131,14 +1192,88 @@ async def download_video(query, url, quality='best', context=None):
             f"⏱️ Bu bir necha daqiqa olishi mumkin..."
         )
         
-        with open(video_file, 'rb') as video:
-            await query.message.reply_video(
-                video=video,
-                caption=f"✅ {video_title}\n\n📹 Video ({size_mb:.1f} MB)",
-                supports_streaming=True,
-                read_timeout=600,  # 10 minut
-                write_timeout=600,  # 10 minut
-            )
+        # Retry logic bilan upload qilish
+        max_retries = 3
+        retry_delay = 30  # 30 sekund
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Upload attempt {attempt + 1}/{max_retries} for {video_title} ({size_mb:.1f}MB)")
+                
+                # Har safar file'ni qayta ochamiz (memory leak oldini olish)
+                with open(video_file, 'rb') as video:
+                    await query.message.reply_video(
+                        video=video,
+                        caption=f"✅ {video_title}\n\n📹 Video ({size_mb:.1f} MB)",
+                        supports_streaming=True,
+                        read_timeout=1200,  # 20 minut
+                        write_timeout=1200,  # 20 minut
+                        connect_timeout=60,  # 1 minut
+                        pool_timeout=30,  # Connection pool timeout
+                    )
+                
+                logger.info(f"✅ Upload successful on attempt {attempt + 1}")
+                break  # Upload muvaffaqiyatli bo'lsa loop dan chiqamiz
+                
+            except (TimedOut, NetworkError) as network_error:
+                last_error = network_error
+                logger.warning(f"Network error on attempt {attempt + 1}: {network_error}")
+                
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)  # 30s, 60s, 120s
+                    logger.info(f"Network unstable, retrying after {wait_time} seconds...")
+                    
+                    await query.edit_message_text(
+                        f"🌐 Tarmoq muammosi, qayta urinilmoqda...\n\n"
+                        f"📊 Hajm: {size_mb:.1f} MB\n"
+                        f"🔄 Urinish: {attempt + 2}/{max_retries}\n"
+                        f"⏳ Kutish: {wait_time} sekund\n\n"
+                        f"💡 Railway network instability"
+                    )
+                    
+                    await asyncio.sleep(wait_time)
+                else:
+                    # Oxirgi urinish ham network error
+                    logger.error(f"❌ All {max_retries} attempts failed due to network issues")
+                    raise network_error
+                    
+            except RetryAfter as retry_error:
+                # Telegram rate limit
+                wait_time = retry_error.retry_after + 5
+                logger.warning(f"Telegram rate limit, waiting {wait_time}s")
+                
+                await query.edit_message_text(
+                    f"⏱️ Telegram limiti\n\n"
+                    f"Kutish vaqti: {wait_time} sekund\n"
+                    f"Keyin avtomatik davom etadi..."
+                )
+                
+                await asyncio.sleep(wait_time)
+                # Retry qilish (attemptni oshirmaydi)
+                continue
+                
+            except Exception as upload_error:
+                last_error = upload_error
+                logger.error(f"Upload attempt {attempt + 1} failed: {type(upload_error).__name__}: {upload_error}")
+                
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)
+                    logger.info(f"Retrying after {wait_time} seconds...")
+                    
+                    await query.edit_message_text(
+                        f"⚠️ Upload muammosi, qayta urinilmoqda...\n\n"
+                        f"📊 Hajm: {size_mb:.1f} MB\n"
+                        f"🔄 Urinish: {attempt + 2}/{max_retries}\n"
+                        f"⏳ Kutish: {wait_time} sekund\n\n"
+                        f"Xatolik: {type(upload_error).__name__}"
+                    )
+                    
+                    await asyncio.sleep(wait_time)
+                else:
+                    # Oxirgi urinish ham muvaffaqiyatsiz
+                    logger.error(f"❌ All {max_retries} attempts exhausted")
+                    raise upload_error
         
         # Faylni o'chirish
         os.remove(video_file)
