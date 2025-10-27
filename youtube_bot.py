@@ -725,8 +725,8 @@ async def show_quality_options(query, url, context):
         else:
             description_lines.append("🚀 Tezkor (Direct): N/A (faqat Instagram/Pinterest)")
         description_lines.append("☁️ Serverdan:")
-        description_lines.append("  • ≤500 MB: Video ko'rinishida (inline play)")
-        description_lines.append("  • 500 MB - 2 GB: File ko'rinishida")
+        description_lines.append("  • ≤300 MB: Video ko'rinishida (inline play)")
+        description_lines.append("  • 300 MB - 2 GB: File ko'rinishida")
         description_lines.append("\n⚠️ N/A (hajm noma'lum) formatlar katta bo'lishi mumkin")
 
         await query.edit_message_text(
@@ -955,11 +955,11 @@ async def download_video(query, url, quality='best', context=None):
                 raise FileNotFoundError(f"Video fayl topilmadi: {video_file}")
         
         # Faylni yuborish
-        # Yuborishdan oldin 500MB cheklovni yakuniy faylga nisbatan ham tekshiramiz
+        # Yuborishdan oldin 300MB cheklovni yakuniy faylga nisbatan ham tekshiramiz (Railway RAM limit uchun)
         final_size = os.path.getsize(video_file)
         size_mb = final_size / (1024 * 1024)
         
-        if final_size > 500 * 1024 * 1024:
+        if final_size > 300 * 1024 * 1024:
             # 500MB dan katta: file/document sifatida yuboramiz (2GB gacha)
             if final_size > 2 * 1024 * 1024 * 1024:
                 await query.edit_message_text(
@@ -974,7 +974,7 @@ async def download_video(query, url, quality='best', context=None):
                     pass
                 return
             
-            # 500MB-2GB: file sifatida yuborish
+            # 300MB-2GB: file sifatida yuborish
             await query.edit_message_text(
                 f"📄 Video katta ekan ({size_mb:.1f}MB). File sifatida yuborilmoqda...\n\n"
                 f"⏱️ Bu bir necha daqiqa olishi mumkin..."
@@ -1124,7 +1124,7 @@ async def download_video(query, url, quality='best', context=None):
                 )
                 return
 
-        # ≤500MB: video sifatida yuborish (inline play)
+        # ≤300MB: video sifatida yuborish (inline play, Railway RAM limit uchun)
         await query.edit_message_text(
             f"📤 Video yuborilmoqda...\n\n"
             f"📊 Hajm: {size_mb:.1f} MB\n"
