@@ -700,7 +700,18 @@ async def show_quality_options(query, url, context):
     except Exception as e:
         logger.error(f"Sifat olishda xatolik: {e}")
         
-        if "Sign in to confirm" in str(e) or ("bot" in str(e).lower() and "youtube" in str(e).lower()):
+        # Instagram rate-limit (429)
+        if "429" in str(e) or "Too Many Requests" in str(e) or "rate-limit" in str(e).lower():
+            await query.edit_message_text(
+                "⏱️ Instagram cheklovi (Rate Limit)\n\n"
+                "Instagram ko'p so'rovlar kelganini aniqladi va vaqtincha blokladi.\n\n"
+                "✅ Yechim:\n"
+                "• 5-10 daqiqa kuting\n"
+                "• Instagram Reels/Story uchun 🚀 Direct tugmasini ishlating (tezroq va bloklash kam)\n"
+                "• Juda ko'p video yuklamaslik\n\n"
+                "⚠️ Bu Instagram'ning himoya mexanizmi."
+            )
+        elif "Sign in to confirm" in str(e) or ("bot" in str(e).lower() and "youtube" in str(e).lower()):
             await query.edit_message_text(
                 "🤖 YouTube bot detection xatosi!\n\n"
                 "YouTube bu videoni bot deb aniqladi.\n\n"
@@ -1033,7 +1044,18 @@ async def download_video(query, url, quality='best', context=None):
         # Xatolik turini aniqlash
         error_message = "❌ Video yuklashda xatolik yuz berdi."
         
-        if "Sign in to confirm" in str(e) or "bot" in str(e).lower():
+        # Instagram rate-limit (429)
+        if "429" in str(e) or "Too Many Requests" in str(e) or "rate-limit" in str(e).lower():
+            error_message = (
+                "⏱️ Instagram cheklovi (Rate Limit)\n\n"
+                "Instagram ko'p so'rovlar kelganini aniqladi va vaqtincha blokladi.\n\n"
+                "✅ Yechim:\n"
+                "• 5-10 daqiqa kuting\n"
+                "• Instagram Reels/Story uchun 🚀 Direct tugmasini ishlating (tezroq va bloklash kam)\n"
+                "• Juda ko'p video yuklamaslik\n\n"
+                "⚠️ Bu Instagram'ning himoya mexanizmi."
+            )
+        elif "Sign in to confirm" in str(e) or "bot" in str(e).lower():
             error_message = (
                 "🤖 YouTube bot detection xatosi!\n\n"
                 "YouTube ba'zi videolarni bot deb aniqlayapti.\n\n"
@@ -1072,6 +1094,16 @@ async def download_video(query, url, quality='best', context=None):
                 "🎬 Bu video uchun mos format topilmadi.\n\n"
                 "Bu link ishlamasligi yoki video mavjud emasligi mumkin.\n"
                 "Boshqa link yuboring."
+            )
+        elif "unreachable" in str(e).lower() or "cookies" in str(e).lower() or "authentication" in str(e).lower():
+            error_message = (
+                "🔒 Instagram autentifikatsiya xatosi (Story/Highlights)\n\n"
+                "Instagram cookie'lari eskirgan yoki yaroqsiz.\n\n"
+                "✅ Yechim:\n"
+                "1. Brauzerda Instagram'ga kiring\n"
+                "2. Cookie'larni eksport qiling (yt-dlp formatida)\n"
+                "3. youtube_cookies.txt faylini yangilang\n\n"
+                "⚠️ Ba'zi Story'lar maxsus ruxsat talab qiladi (close friends)."
             )
         
         await query.message.edit_text(error_message)
