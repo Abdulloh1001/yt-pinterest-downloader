@@ -5,6 +5,7 @@ import math
 import shutil
 import subprocess
 import random
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 import yt_dlp
@@ -73,6 +74,12 @@ async def send_direct_video(query, url, context: ContextTypes.DEFAULT_TYPE, qual
         is_instagram = 'instagram.com' in url or 'instagr.am' in url
         if not (is_pinterest or is_instagram):
             return False
+        
+        # Instagram/Pinterest uchun rate-limit kamaytirishга delay qo'shamiz
+        if is_instagram or is_pinterest:
+            delay = random.uniform(1.5, 3.0)  # 1.5-3 soniya
+            logger.info(f"Request delay: {delay:.1f}s (anti-rate-limit)")
+            await asyncio.sleep(delay)
 
         ydl_opts_info = {
             'quiet': True,
@@ -757,14 +764,19 @@ async def show_quality_options(query, url, context):
 async def download_video(query, url, quality='best', context=None):
     """Video formatda yuklab oladi"""
     try:
-        await query.edit_message_text("🔍 Video ma'lumotlari olinmoqda...")
-        
-        # Platforma flaglari (direct endi faqat alohida tugma orqali)
+        # Platforma flaglari
         is_pinterest = 'pinterest.com' in url or 'pin.it' in url
         is_instagram = 'instagram.com' in url or 'instagr.am' in url
         
-        # Agar DIRECT ishlamasa, STREAMING orqali yuklaymiz (eski usul)
-        # Lekin AVVAL hajmni tekshiramiz!
+        # Instagram/Pinterest uchun rate-limit kamaytirishга delay qo'shamiz
+        if is_instagram or is_pinterest:
+            delay = random.uniform(1.5, 3.0)  # 1.5-3 soniya
+            logger.info(f"Request delay: {delay:.1f}s (anti-rate-limit)")
+            await asyncio.sleep(delay)
+        
+        await query.edit_message_text("🔍 Video ma'lumotlari olinmoqda...")
+        
+        # AVVAL hajmni tekshiramiz!
         await query.edit_message_text("🔍 Video hajmi tekshirilmoqda...")
         
         # Video hajmini olish (yuklab olmasdan)
