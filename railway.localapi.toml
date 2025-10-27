@@ -1,0 +1,11 @@
+# Railway Config for telegram-local-api service
+# Bu faylni telegram-local-api service uchun ishlatamiz
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.localapi"
+
+[deploy]
+startCommand = ""
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
