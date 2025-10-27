@@ -45,10 +45,15 @@ async def send_direct_video(query, url, context: ContextTypes.DEFAULT_TYPE, qual
         ydl_opts_info = {
             'quiet': True,
             'no_warnings': True,
-            'format': 'best',  # Pinterest/Instagram uchun eng xavfsizi
             'ignore_no_formats_error': True,  # Pinterest fotolari uchun
         }
-        if is_pinterest:
+        
+        # Instagram: audio+video birlashtirilgan format (Reels uchun)
+        if is_instagram:
+            ydl_opts_info['format'] = 'bestvideo+bestaudio/best'
+        else:
+            # Pinterest
+            ydl_opts_info['format'] = 'best'
             ydl_opts_info['http_headers'] = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -58,6 +63,7 @@ async def send_direct_video(query, url, context: ContextTypes.DEFAULT_TYPE, qual
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1'
             }
+        
         cookies_file = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
         if os.path.exists(cookies_file):
             ydl_opts_info['cookiefile'] = cookies_file
@@ -852,10 +858,12 @@ async def download_video(query, url, quality='best', context=None):
             }
             # Pinterest uchun cookies optional (public content)
         elif is_instagram:
-            # Instagram uchun cookies MAJBURIY
+            # Instagram uchun cookies MAJBURIY va audio+video birlashtirilgan format
             if os.path.exists(cookies_file):
                 ydl_opts['cookiefile'] = cookies_file
                 logger.info("Instagram uchun cookies ishlatilmoqda")
+            # Instagram Reels: audio track bilan birgalikda
+            ydl_opts['format'] = 'bestvideo+bestaudio/best'
         else:
             # YouTube uchun - sifatga qarab format tanlash
             if quality == 'best':
