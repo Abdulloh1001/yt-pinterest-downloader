@@ -1539,7 +1539,16 @@ def main():
     if LOCAL_API_URL:
         # Local Bot API'dan foydalanish (10x tezroq!)
         logger.info(f"🚀 Using Local Bot API: {LOCAL_API_URL}")
-        application = Application.builder().token(BOT_TOKEN).base_url(f"{LOCAL_API_URL}/bot").build()
+        from telegram.request import HTTPXRequest
+        # Custom request with longer timeouts for large files
+        request = HTTPXRequest(
+            connection_pool_size=8,
+            read_timeout=1200.0,  # 20 minut (katta fayllar uchun)
+            write_timeout=1200.0,  # 20 minut
+            connect_timeout=20.0,
+            pool_timeout=10.0
+        )
+        application = Application.builder().token(BOT_TOKEN).base_url(f"{LOCAL_API_URL}/bot").request(request).build()
     else:
         # Default Telegram API
         logger.info("📡 Using default Telegram Bot API (api.telegram.org)")
