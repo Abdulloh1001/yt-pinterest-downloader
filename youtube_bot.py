@@ -975,15 +975,16 @@ async def download_video(query, url, quality='best', context=None):
             
             # 500MB-2GB: file sifatida yuborish
             await query.edit_message_text(
-                f"📄 Video katta ekan ({size_mb:.1f}MB). File sifatida yuborilmoqda..."
+                f"📄 Video katta ekan ({size_mb:.1f}MB). File sifatida yuborilmoqda...\n\n"
+                f"⏱️ Bu bir necha daqiqa olishi mumkin..."
             )
             try:
                 with open(video_file, 'rb') as f:
                     await query.message.reply_document(
                         document=f,
                         caption=f"✅ {video_title}\n\n📦 File ({size_mb:.1f} MB)\n💡 Yuklab olib tomosha qiling",
-                        read_timeout=300,
-                        write_timeout=300,
+                        read_timeout=600,  # 10 minut
+                        write_timeout=600,  # 10 minut
                     )
                 await query.message.delete()
                 
@@ -1123,15 +1124,19 @@ async def download_video(query, url, quality='best', context=None):
                 return
 
         # ≤500MB: video sifatida yuborish (inline play)
-        await query.edit_message_text("📤 Video yuborilmoqda...")
+        await query.edit_message_text(
+            f"📤 Video yuborilmoqda...\n\n"
+            f"📊 Hajm: {size_mb:.1f} MB\n"
+            f"⏱️ Bu bir necha daqiqa olishi mumkin..."
+        )
         
         with open(video_file, 'rb') as video:
             await query.message.reply_video(
                 video=video,
                 caption=f"✅ {video_title}\n\n📹 Video ({size_mb:.1f} MB)",
                 supports_streaming=True,
-                read_timeout=300,
-                write_timeout=300,
+                read_timeout=600,  # 10 minut
+                write_timeout=600,  # 10 minut
             )
         
         # Faylni o'chirish
